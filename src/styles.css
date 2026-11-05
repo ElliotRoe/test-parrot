@@ -526,6 +526,10 @@ button { cursor: pointer; }
     var(--bank-ground) var(--editor-bar-height));
 }
 .workspace-resizer:hover, .workspace-resizer:focus-visible { background: #e3d2bd; }
+/* Where the sheet runs on under the pane, the pane's edge casts a faint
+   shadow over it, so it reads as lying on top rather than cutting it off. */
+.workspace-resizer { position: relative; z-index: 3; transition: box-shadow 160ms ease; }
+.authoring-workspace[data-overlapped] .workspace-resizer { box-shadow: -8px 0 12px -6px rgb(55 42 33 / 24%); }
 .workspace-resizer:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 
 /* ---------------------------------------------------------------------------

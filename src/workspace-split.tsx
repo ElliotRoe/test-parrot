@@ -78,6 +78,23 @@ export function WorkspaceSplit({
   const dragging = useRef<number | null>(null)
   // The pane slides when it opens or closes, but follows the divider at once.
   const [resizing, setResizing] = useState(false)
+  // Whether the sheet runs on under the pane — wider than its lane, and not
+  // scrolled to its right edge — so the pane can say it is lying over it.
+  const [overlapped, setOverlapped] = useState(false)
+  useEffect(() => {
+    const lane = container.current?.querySelector<HTMLElement>('.editor-output')
+    if (!lane) return
+    const measure = () => setOverlapped(lane.scrollWidth - lane.clientWidth - lane.scrollLeft > 1)
+    measure()
+    const observer = new ResizeObserver(measure)
+    observer.observe(lane)
+    if (lane.firstElementChild) observer.observe(lane.firstElementChild)
+    lane.addEventListener('scroll', measure, { passive: true })
+    return () => {
+      observer.disconnect()
+      lane.removeEventListener('scroll', measure)
+    }
+  }, [])
 
   const style = {
     '--bank-column': `${bankPercent}%`,
@@ -90,6 +107,7 @@ export function WorkspaceSplit({
       style={style}
       data-bank-open={bankOpen ? 'true' : 'false'}
       data-resizing={resizing || !animate ? 'true' : undefined}
+      data-overlapped={overlapped && bankOpen ? 'true' : undefined}
     >
       <div className="exam-column">{exam}</div>
       {/* The divider is a real control rather than a decorated border: it
