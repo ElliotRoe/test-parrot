@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: amended by ADR-0051
 ---
 
 # Let a teacher delete an Exam, and its Export History with it

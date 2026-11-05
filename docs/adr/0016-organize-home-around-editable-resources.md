@@ -1,5 +1,5 @@
 ---
-status: accepted
+status: superseded by ADR-0051
 ---
 
 # Organize Home around editable resources
