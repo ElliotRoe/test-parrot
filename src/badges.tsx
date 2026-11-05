@@ -17,11 +17,23 @@ const DIFFICULTY_ICONS: Record<Difficulty, ReactNode> = {
   hard: <SignalHigh />,
 }
 
-export function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
+export function DifficultyBadge({ difficulty, iconOnly = false }: {
+  difficulty: Difficulty
+  /** The signal alone, where a line has no room for the word; it is still
+   *  named for a screen reader and on hover. */
+  iconOnly?: boolean
+}) {
   return (
-    <span className="badge badge-difficulty" data-difficulty={difficulty}>
+    <span
+      className="badge badge-difficulty"
+      data-difficulty={difficulty}
+      data-icon-only={iconOnly ? 'true' : undefined}
+      title={iconOnly ? DIFFICULTY_LABELS[difficulty] : undefined}
+    >
       {DIFFICULTY_ICONS[difficulty]}
-      {DIFFICULTY_LABELS[difficulty]}
+      {iconOnly
+        ? <span className="sr-only">{DIFFICULTY_LABELS[difficulty]}</span>
+        : DIFFICULTY_LABELS[difficulty]}
     </span>
   )
 }

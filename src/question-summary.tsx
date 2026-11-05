@@ -69,7 +69,7 @@ export function QuestionLine({ question, number }: { question: Question; number:
     <span className="question-line">
       <span className="question-row-number">{number}.</span>
       <span className="question-line-type">{SECTION_LABELS[question.type]}</span>
-      {question.difficulty && <DifficultyBadge difficulty={question.difficulty} />}
+      {question.difficulty && <DifficultyBadge difficulty={question.difficulty} iconOnly />}
       {topics.length > 0 && <span className="question-line-topics">
         {topics.map((topic) => <TopicBadge topic={topic} key={topic} />)}
       </span>}

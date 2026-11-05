@@ -24,7 +24,9 @@
   /* The editor's header band, which the Exam's bar and the Question Bank
      Pane's header share so that one rule runs under both. */
   --editor-bar-height: 64px;
-  --editor-bar-line: #e8dfd2;
+  /* Every divider: a rule between two parts of the app — under a header,
+     between panes, down an outline, across a dialog — is this one colour. */
+  --divider: #e8dfd2;
   --bank-frame-line: #d3c2ac;
 
   /* Badge tints. Muted enough to sit inside a page of prose without shouting,
@@ -114,7 +116,7 @@ button { cursor: pointer; }
   flex: none; position: sticky; top: 0; z-index: 20;
   height: var(--editor-bar-height); box-sizing: border-box; padding: 0 18px;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  border-bottom: 1px solid var(--editor-bar-line); background: #fffaf3;
+  border-bottom: 1px solid var(--divider); background: #fffaf3;
 }
 .document-identity { display: flex; flex: 0 1 auto; align-items: center; gap: 10px; min-width: 0; }
 .document-title-stack { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
@@ -323,7 +325,7 @@ button { cursor: pointer; }
 .historical-review-differences { margin-top: 6px !important; color: #6e5b4d; font-size: 13px; }
 .historical-review-row fieldset { display: grid; gap: 6px; margin: 12px 0; padding: 0; border: 0; }
 .historical-review-option { display: flex; align-items: center; gap: 8px; }
-.historical-review-row details { border-top: 1px solid #e8dfd2; padding-top: 10px; font-size: 13px; }
+.historical-review-row details { border-top: 1px solid var(--divider); padding-top: 10px; font-size: 13px; }
 .historical-review-row summary { cursor: pointer; font-weight: 600; }
 .historical-comparison { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 10px 0 0; }
 .historical-comparison dt { color: #6e5b4d; font-weight: 600; }
@@ -382,20 +384,22 @@ button { cursor: pointer; }
    lines hang off a guide rule, and the line in view is marked on that rule,
    as a document outline does. */
 .exam-outline-pane {
-  flex: none; width: 300px; min-height: 0; display: flex; overflow: hidden; background: transparent;
+  flex: none; width: 344px; min-height: 0; display: flex; overflow: hidden; background: transparent;
   transition: width 220ms ease;
 }
-.exam-outline-pane[data-open='false'] { width: 0; }
-.exam-outline-pane > .exam-outline { flex: none; width: 300px; }
+/* Closed, it keeps a rail as wide as its toggle needs, so the toggle never
+   sits over the sheet and nothing but the rail's width changes as it opens. */
+.exam-outline-pane[data-open='false'] { width: 76px; }
+.exam-outline-pane > .exam-outline { flex: none; width: 344px; }
 @media (prefers-reduced-motion: reduce) { .exam-outline-pane { transition: none; } }
 .exam-outline { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .exam-outline-header {
   flex: none; display: flex; align-items: center; height: 36px; margin: 12px 0 6px;
   /* Room at its left for the toggle that sits over it. */
-  padding: 0 10px 0 64px;
+  padding: 0 10px 0 76px;
 }
 .exam-outline-header h2 { margin: 0; color: #6e5b4d; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
-.exam-outline-sections { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding: 4px 12px 16px 24px; list-style: none; }
+.exam-outline-sections { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding: 4px 8px 16px 40px; list-style: none; }
 .exam-outline-section + .exam-outline-section { margin-top: 14px; }
 .exam-outline-heading {
   margin: 0 0 4px; overflow: hidden; color: #332a24;
@@ -403,33 +407,47 @@ button { cursor: pointer; }
 }
 .exam-outline-list {
   display: flex; flex-direction: column; margin: 0 0 0 6px; padding: 0; list-style: none;
-  border-left: 2px solid #e4d9ca;
+  border-left: 2px solid var(--divider);
 }
 .exam-outline-empty { margin: 0 4px; color: #7a6a5c; font-size: 12.5px; }
-.exam-outline-sections > .exam-outline-empty, .exam-outline > .exam-outline-empty { margin: 0 24px; }
-.exam-outline-section .exam-outline-empty { margin: 2px 0 0 6px; padding: 4px 0 4px 16px; border-left: 2px solid #e4d9ca; }
+.exam-outline-sections > .exam-outline-empty, .exam-outline > .exam-outline-empty { margin: 0 40px; }
+.exam-outline-section .exam-outline-empty { margin: 2px 0 0 6px; padding: 4px 0 4px 16px; border-left: 2px solid var(--divider); }
+.exam-outline-item { position: relative; display: flex; align-items: center; margin-left: -2px; }
 .exam-outline-row {
-  position: relative; display: block; width: calc(100% + 2px); margin-left: -2px;
-  padding: 5px 6px 5px 16px; border: 0; border-left: 2px solid transparent; border-radius: 0 6px 6px 0;
+  position: relative; display: block; flex: 1 1 auto; min-width: 0;
+  padding: 5px 24px 5px 14px; border: 0; border-left: 2px solid transparent; border-radius: 0 6px 6px 0;
   color: #4e3b2f; background: transparent; font: inherit; text-align: left; cursor: grab;
 }
-.exam-outline-row:hover { background: rgb(110 91 77 / 7%); }
-.exam-outline-row:active { cursor: grabbing; }
+.exam-outline-row { cursor: pointer; }
+.exam-outline-item:hover .exam-outline-row { background: rgb(110 91 77 / 7%); }
+/* The grip a Question is moved by: out of sight until the line is hovered,
+   then at its right end. */
+.exam-outline-grip {
+  position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 24px;
+  border-radius: 4px; color: #8a7666; cursor: grab; opacity: 0; touch-action: none;
+  transition: opacity .12s ease;
+}
+.exam-outline-grip svg { width: 15px; height: 15px; }
+.exam-outline-item:hover .exam-outline-grip, .exam-outline-item[data-dragging] .exam-outline-grip { opacity: 1; }
+.exam-outline-grip:hover { color: #4e3b2f; background: rgb(110 91 77 / 10%); }
+.exam-outline-grip:active { cursor: grabbing; }
 .exam-outline-row:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 /* The Question in view as the pages scroll: marked on the guide rule. */
 .exam-outline-row[aria-current='location'] { border-left-color: var(--paper-accent); color: var(--paper-accent); }
 .exam-outline-row[aria-current='location'] .question-row-number { color: inherit; }
-.exam-outline-row[data-dragging] { opacity: 0.4; }
-.exam-outline-row[data-drop]::after {
+.exam-outline-item[data-dragging] { opacity: 0.4; }
+.exam-outline-item[data-drop]::after {
   content: ''; position: absolute; left: 8px; right: 4px; height: 2px; border-radius: 1px;
   background: var(--paper-accent);
 }
-.exam-outline-row[data-drop='before']::after { top: -1px; }
-.exam-outline-row[data-drop='after']::after { bottom: -1px; }
-.question-drag-preview .exam-outline-row { width: 260px; margin: 0; background: #fffdf8; }
+.exam-outline-item[data-drop='before']::after { top: -1px; }
+.exam-outline-item[data-drop='after']::after { bottom: -1px; }
+.question-drag-preview .exam-outline-item { width: 270px; margin: 0; background: #fffdf8; }
+.question-drag-preview .exam-outline-grip { opacity: 1; }
 /* One line, whatever it carries: what does not fit is cut off at the edge. */
 .question-line {
-  display: flex; align-items: center; gap: 7px; min-width: 0; overflow: hidden; white-space: nowrap;
+  display: flex; align-items: center; gap: 6px; min-width: 0; overflow: hidden; white-space: nowrap;
   font-size: 13px;
 }
 .question-line > * { flex: none; }
@@ -439,6 +457,9 @@ button { cursor: pointer; }
   height: 18px; box-sizing: border-box; padding: 0 6px; gap: 0; font-size: 11px; line-height: 16px;
 }
 .question-line .badge svg { display: none; }
+/* Difficulty by its signal alone: the rising bars say which of the three. */
+.question-line .badge-difficulty[data-icon-only] { width: 22px; justify-content: center; padding: 0; }
+.question-line .badge-difficulty[data-icon-only] svg { display: block; width: 15px; height: 15px; }
 .question-line-type { flex: 0 0.05 auto !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .question-line-topics { flex: 0 1 auto !important; display: flex; gap: 4px; min-width: 0; overflow: hidden; }
 .question-line-topics .badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -452,17 +473,16 @@ button { cursor: pointer; }
    the outline opens below it, turned into the back arrow that closes it. */
 .exam-body { position: relative; }
 .exam-outline-toggle {
-  position: absolute; z-index: 61; top: 12px; left: 20px;
+  position: absolute; z-index: 61; top: 12px; left: 28px;
   display: inline-flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 8px;
   color: #6e5b4d; background: transparent;
 }
 .exam-outline-toggle:hover { border-color: #d8cbbb; background: #f7eee3; }
-.exam-outline-toggle svg { width: 18px; height: 18px; }
+.exam-outline-toggle svg { flex: none; width: 18px; height: 18px; }
+.exam-outline-toggle[aria-expanded='true'] { width: auto; gap: 10px; padding: 0 12px 0 8px; }
+.exam-outline-toggle-label { color: #6e5b4d; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
 /* With the outline closed, the sheet keeps clear of the toggle. */
-/* Kept the same open or closed, and on both sides, so the sheet stays
-   centred and only slides as the outline opens — it never jumps. */
-.editor-output .exam-workspace { padding-left: 72px; padding-right: 72px; }
 /* A Question chosen from the outline, marked for a moment where it landed. */
 .exam-question[data-outline-flash] { animation: outline-flash 1.2s ease-out; }
 @keyframes outline-flash {
@@ -481,12 +501,12 @@ button { cursor: pointer; }
 /* The divider. A real control: it takes focus and answers the arrow keys, so
    the split is resizable without a pointer. */
 .workspace-resizer {
-  min-height: 0; cursor: col-resize; border-left: 1px solid var(--editor-bar-line);
+  min-height: 0; cursor: col-resize; border-left: 1px solid var(--divider);
   /* The header band and its rule run on through the divider. */
   background: linear-gradient(to bottom,
-    #fff 0 calc(var(--editor-bar-height) - 1px),
-    var(--editor-bar-line) calc(var(--editor-bar-height) - 1px) var(--editor-bar-height),
-    #fff var(--editor-bar-height));
+    #fffaf3 0 calc(var(--editor-bar-height) - 1px),
+    var(--divider) calc(var(--editor-bar-height) - 1px) var(--editor-bar-height),
+    var(--app-ground) var(--editor-bar-height));
 }
 .workspace-resizer:hover, .workspace-resizer:focus-visible { background: #e3d2bd; }
 .workspace-resizer:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
@@ -501,7 +521,7 @@ button { cursor: pointer; }
    and around the scroll area, so the tab strip is visibly not part of the bank
    it opens. The new-tab plus follows the last tab, where Chrome puts it. */
 .question-bank-authoring {
-  position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #fff;
+  position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--app-ground);
 }
 /* A question carried off the Exam over the pane: released, it is Removed. */
 .question-bank-authoring[data-remove-over] { box-shadow: inset 0 0 0 2px var(--paper-danger); }
@@ -516,16 +536,17 @@ button { cursor: pointer; }
 /* The pane's close: the top-right-most control, level with Export. */
 .bank-tabs-trailing { grid-area: close; align-self: center; display: flex; }
 .bank-tabs-pane {
-  display: flex; flex-direction: column; height: 100%; min-height: 0; background: #fff;
+  /* The same header band and the same ground as the Exam's column beside it. */
+  display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--app-ground);
 }
 /* Two rows, as the Exam's bar has: the name, then the open banks as tabs
    where the Exam's menus are — on the same band and over the same rule. */
 .bank-pane-header {
   flex: none; height: var(--editor-bar-height); box-sizing: border-box; padding: 0 12px 0 16px;
-  background: #fff !important;
+  background: #fffaf3;
   display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title close' 'tabs close';
   grid-template-rows: 1fr auto; column-gap: 8px;
-  border-bottom: 1px solid var(--editor-bar-line); background: #fffaf3;
+  border-bottom: 1px solid var(--divider); background: #fffaf3;
 }
 .bank-pane-title { grid-area: title; align-self: end; display: flex; align-items: center; gap: 6px; min-width: 0; padding-bottom: 2px; color: #6e5b4d; }
 .bank-pane-title svg { flex: none; width: 14px; height: 14px; }
@@ -533,8 +554,8 @@ button { cursor: pointer; }
   margin: 0; overflow: hidden; font-size: 12px; font-weight: 700; letter-spacing: .04em;
   text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap;
 }
-.bank-tabs-pane > .question-bank { flex: 1 1 auto; height: auto; min-height: 0; border: 0; border-radius: 0; background: #fff; }
-.bank-tabs-pane > .question-bank .question-bank-toolbar { background: #fff; }
+.bank-tabs-pane > .question-bank { flex: 1 1 auto; height: auto; min-height: 0; border: 0; border-radius: 0; background: transparent; }
+.bank-tabs-pane > .question-bank .question-bank-toolbar { background: var(--app-ground); }
 /* The tabs sit on the header's rule; the active one is underlined on it. */
 .bank-tabs-bar {
   grid-area: tabs; position: relative; z-index: 1; margin-bottom: -1px; min-width: 0;
@@ -1743,7 +1764,7 @@ body.margins-guides .exam-page::after {
   grid-template-rows: auto auto 1fr auto; overflow: hidden; border-radius: 10px;
   background: #fffaf3; box-shadow: 0 18px 55px rgb(55 42 33 / 30%);
 }
-.dialog-header, .dialog-actions { padding: 14px 18px; border-bottom: 1px solid #e8dfd2; }
+.dialog-header, .dialog-actions { padding: 14px 18px; border-bottom: 1px solid var(--divider); }
 .dialog-header { display: flex; align-items: center; justify-content: space-between; gap: 20px; }
 .dialog-header h2 { margin: 0; font-size: 18px; }
 /* The Import dialog's title names the format a question file was read as
@@ -1758,7 +1779,7 @@ body.margins-guides .exam-page::after {
 .choice-controls select {
   padding: 7px 30px 7px 9px; border: 1px solid #cdb9a6; border-radius: 6px; background: #fffdf8;
 }
-.dialog-actions { justify-content: flex-end; border-top: 1px solid #e8dfd2; border-bottom: 0; }
+.dialog-actions { justify-content: flex-end; border-top: 1px solid var(--divider); border-bottom: 0; }
 
 /* A question's front matter: one row per property, the label on the left and
    what has been chosen on the right. It is indented to the document's own text
@@ -2381,7 +2402,7 @@ body.margins-guides .exam-page::after {
 .app-nav {
   position: sticky; top: 0; align-self: start; height: 100vh;
   display: flex; flex-direction: column; gap: 20px; padding: 13px 12px;
-  border-right: 1px solid #e8dfd2; background: #fffaf3;
+  border-right: 1px solid var(--divider); background: #fffaf3;
 }
 .app-nav-brand { padding: 4px 6px; }
 .app-nav-list { display: grid; gap: 3px; margin: 0; padding: 0; list-style: none; }
@@ -2413,7 +2434,7 @@ body.margins-guides .exam-page::after {
 .app-topbar {
   position: sticky; top: 0; z-index: 20; min-height: 54px;
   display: flex; align-items: center; justify-content: space-between; gap: 16px;
-  padding: 8px 22px; border-bottom: 1px solid #e8dfd2; background: #fffaf3;
+  padding: 8px 22px; border-bottom: 1px solid var(--divider); background: #fffaf3;
 }
 .app-topbar-actions { display: flex; align-items: center; gap: 10px; }
 .app-main { flex: 1; width: 100%; max-width: 1120px; margin: 0 auto; padding: 26px 22px 40px; }
@@ -2856,7 +2877,7 @@ body.margins-guides .exam-page::after {
   .app-shell { grid-template-columns: minmax(0, 1fr); }
   .app-nav {
     position: static; height: auto; flex-direction: row; align-items: center; gap: 14px;
-    padding: 8px 14px; border-right: 0; border-bottom: 1px solid #e8dfd2; overflow-x: auto;
+    padding: 8px 14px; border-right: 0; border-bottom: 1px solid var(--divider); overflow-x: auto;
   }
   .app-nav-list { grid-auto-flow: column; justify-content: start; }
   .app-nav-link { white-space: nowrap; }

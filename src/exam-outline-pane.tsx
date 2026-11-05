@@ -9,6 +9,7 @@
 // page. Sections are not dragged here.
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
+import { GripVertical } from 'lucide-react'
 import type { Arrangement, Exam, QuestionType } from './exam'
 import { outlineOf } from './exam-outline'
 import { QuestionLine } from './question-summary'
@@ -33,9 +34,21 @@ function piecesOf(questionId: string): HTMLElement[] {
   )]
 }
 
+/** How far below the top of the Exam's lane a Question's top may be and still
+ *  count as the one being read — the same place a Question chosen from the
+ *  outline is brought to, so the two agree. */
+const READING_LINE = 48
+/** How long after a row is chosen the page's own scrolling is taken to be the
+ *  reveal settling, rather than the teacher scrolling somewhere else. */
+const REVEAL_SETTLE_MS = 700
+/** How far a press on a grip must move before it is a drag rather than a
+ *  slip of the hand. */
+const DRAG_THRESHOLD = 8
+
 /** Which Question the teacher is looking at: the last to have started above
- *  the upper third of the Exam's lane — or, scrolled as far as it goes, the
- *  last to have started in view at all, since nothing lower can rise further. */
+ *  the reading line near the top of the Exam's lane — or, scrolled as far as
+ *  it goes, the last to have started in view at all, since nothing lower can
+ *  rise further. */
 function questionInView(): string | null {
   const lane = document.querySelector('.editor-output')
   const scroller = lane && /auto|scroll/.test(getComputedStyle(lane).overflowY)
@@ -46,7 +59,7 @@ function questionInView(): string | null {
     ? lane.getBoundingClientRect()
     : { top: 0, bottom: window.innerHeight, height: window.innerHeight }
   const atEnd = scroller.scrollTop + scroller.clientHeight >= scroller.scrollHeight - 2
-  const line = atEnd ? bounds.bottom - 24 : bounds.top + bounds.height / 3
+  const line = atEnd ? bounds.bottom - 24 : bounds.top + READING_LINE
   let current: string | null = null
   for (const piece of document.querySelectorAll<HTMLElement>('.exam-workspace .exam-question[data-question-id]')) {
     if (piece.getBoundingClientRect().top > line) break
@@ -69,6 +82,10 @@ export function ExamOutline({
 }) {
   const outline = outlineOf(exam, arrangement)
   const [inView, setInView] = useState<string | null>(null)
+  // A row just chosen is the one in view, whatever the geometry says, until
+  // the teacher scrolls on their own — a Question near the end of the Exam
+  // may not be able to rise to the reading line at all.
+  const chosen = useRef<{ questionId: string; until: number } | null>(null)
   const flashes = useRef(new Map<string, ReturnType<typeof setTimeout>>())
 
   // The row for the Question in view follows the page as it scrolls — the
@@ -77,17 +94,23 @@ export function ExamOutline({
     let frame: number | null = null
     const update = () => {
       frame = null
-      setInView(questionInView())
+      setInView(chosen.current?.questionId ?? questionInView())
     }
     const schedule = () => {
       if (frame === null) frame = requestAnimationFrame(update)
     }
+    const onScroll = (event: Event) => {
+      // The outline's own list scrolling says nothing about the page.
+      if ((event.target as Element | null)?.closest?.('.exam-outline')) return
+      if (chosen.current && performance.now() > chosen.current.until) chosen.current = null
+      schedule()
+    }
     schedule()
-    window.addEventListener('scroll', schedule, true)
+    window.addEventListener('scroll', onScroll, true)
     window.addEventListener('resize', schedule)
     return () => {
       if (frame !== null) cancelAnimationFrame(frame)
-      window.removeEventListener('scroll', schedule, true)
+      window.removeEventListener('scroll', onScroll, true)
       window.removeEventListener('resize', schedule)
     }
   }, [exam, arrangement])
@@ -101,6 +124,8 @@ export function ExamOutline({
   }, [])
 
   const reveal = (questionId: string) => {
+    chosen.current = { questionId, until: performance.now() + REVEAL_SETTLE_MS }
+    setInView(questionId)
     onReveal(questionId)
     clearTimeout(flashes.current.get(questionId))
     for (const piece of piecesOf(questionId)) piece.dataset.outlineFlash = 'true'
@@ -146,14 +171,15 @@ export function ExamOutline({
       const held = gesture.current
       if (!held || held.id !== event.pointerId) return
       if (!held.dragging) {
-        if (Math.hypot(event.clientX - held.startX, event.clientY - held.startY) < 5) return
+        if (Math.hypot(event.clientX - held.startX, event.clientY - held.startY) < DRAG_THRESHOLD) return
         held.dragging = true
         suppressClick.current = held.questionId
+        const item = event.currentTarget.closest<HTMLElement>('.exam-outline-item') ?? event.currentTarget
         drag.begin(
           { pane: 'exam-draft', questionIds: [held.questionId], type: held.type },
           {
-            elements: [event.currentTarget],
-            bounds: event.currentTarget.getBoundingClientRect(),
+            elements: [item],
+            bounds: item.getBoundingClientRect(),
             point: { x: held.startX, y: held.startY },
           },
         )
@@ -190,9 +216,9 @@ export function ExamOutline({
 
   return (
     <nav className="exam-outline" aria-label="Exam Outline" data-outline-drop-zone="">
-      {/* The toggle that closes it sits over this line, at its left. */}
+      {/* The toggle that closes it — "← Outline" — sits over this line. */}
       <header className="exam-outline-header">
-        <h2>Outline</h2>
+        <h2 className="sr-only">Outline</h2>
       </header>
       {outline.length === 0 ? (
         <p className="exam-outline-empty">No questions on this exam yet.</p>
@@ -213,16 +239,18 @@ export function ExamOutline({
                   {entries.flatMap(({ question, number, span }) => Array.from(
                     { length: span },
                     (_, item) => (
-                    <li key={`${question.id}-${item}`}>
+                    <li
+                      key={`${question.id}-${item}`}
+                      className="exam-outline-item"
+                      data-outline-question-id={question.id}
+                      data-section-id={section.id}
+                      data-drop={edgeDrop(dropStateOf(drag.intent, question.id), item, span)}
+                      data-dragging={drag.draggedQuestionIds.has(question.id) ? 'true' : undefined}
+                    >
                       <button
                         type="button"
                         className="exam-outline-row"
-                        data-outline-question-id={question.id}
-                        data-section-id={section.id}
-                        data-drop={edgeDrop(dropStateOf(drag.intent, question.id), item, span)}
-                        data-dragging={drag.draggedQuestionIds.has(question.id) ? 'true' : undefined}
                         aria-current={inView === question.id ? 'location' : undefined}
-                        {...dragHandlers(question.id, question.type)}
                         onClick={() => {
                           if (suppressClick.current === question.id) {
                             suppressClick.current = null
@@ -233,6 +261,17 @@ export function ExamOutline({
                       >
                         <QuestionLine question={question} number={number + item} />
                       </button>
+                      {/* Moving a Question is done from its grip alone, which
+                          shows on hover: a click anywhere else on the line
+                          only goes to it. */}
+                      <span
+                        className="exam-outline-grip"
+                        title="Drag to move"
+                        aria-hidden="true"
+                        {...dragHandlers(question.id, question.type)}
+                      >
+                        <GripVertical />
+                      </span>
                     </li>
                   )))}
                 </ol>

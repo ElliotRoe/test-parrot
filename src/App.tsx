@@ -2628,7 +2628,10 @@ function ExamEditor({
       data-pane-toggle=""
       onClick={() => setPaneOpen('outline', !outlineOpen)}
     >
-      {outlineOpen ? <ArrowLeft aria-hidden="true" /> : <List aria-hidden="true" />}
+      {/* Open, the whole "← Outline" line is the control that closes it. */}
+      {outlineOpen
+        ? <><ArrowLeft aria-hidden="true" /><span className="exam-outline-toggle-label" aria-hidden="true">Outline</span></>
+        : <List aria-hidden="true" />}
     </button>
   )
   const removeDropActive = drag.source?.pane === 'exam-draft' && drag.intent?.kind === 'remove'

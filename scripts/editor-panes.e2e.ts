@@ -42,8 +42,11 @@ const bank = (page: Page) => page.getByRole('region', { name: 'Question Bank' })
 const bankRow = (page: Page, stem: string) =>
   bank(page).getByRole('listitem').filter({ hasText: stem })
 const outline = (page: Page) => page.getByRole('navigation', { name: 'Exam Outline' })
-const outlineRow = (page: Page, stem: string) =>
-  outline(page).getByRole('button').filter({ hasText: stem })
+// An outline line is named by the number the Question prints with.
+const outlineRow = (page: Page, number: number) =>
+  outline(page).getByRole('button', { name: new RegExp(`^${number}\\.`) })
+const outlineItem = (page: Page, number: number) =>
+  outline(page).locator('.exam-outline-item').filter({ has: page.getByRole('button', { name: new RegExp(`^${number}\\.`) }) })
 const EXAM_QUESTION = '.exam-workspace .exam-question[data-question-id]'
 const rendered = (page: Page, id: string) =>
   page.locator(`.exam-workspace .exam-question[data-question-id="${id}"]`)
@@ -189,9 +192,9 @@ test.describe('the Exam Outline', () => {
     await page.getByRole('button', { name: 'Show Exam Outline' }).click()
     await expect(outline(page)).toBeVisible()
     // Grouped under its Section Headings, one numbered row per Question.
-    await expect(outlineRow(page, 'Cell membranes')).toContainText('1.')
-    await expect(outlineRow(page, 'Cell membranes')).toContainText('2 pts')
-    await expect(outlineRow(page, 'Explain osmosis')).toContainText('3.')
+    await expect(outlineRow(page, 1)).toContainText('Multiple choice')
+    await expect(outlineRow(page, 1)).toContainText('2 pts')
+    await expect(outlineRow(page, 3)).toContainText('Short answer')
 
     await page.reload()
     await expect(outline(page)).toBeVisible()
@@ -210,12 +213,12 @@ test.describe('the Exam Outline', () => {
 
     const last = rendered(page, 'q23').first()
     await expect(last).not.toBeInViewport()
-    await outlineRow(page, 'Long question 24').click()
+    await outlineRow(page, 24).click()
     await expect(last).toBeInViewport()
     // The page selection is unchanged.
     await expect(page.locator('.exam-question--selected')).toHaveCount(0)
     // And the row for the Question in view is marked as the page scrolls there.
-    await expect(outlineRow(page, 'Long question 24')).toHaveAttribute('aria-current', 'location')
+    await expect(outlineRow(page, 24)).toHaveAttribute('aria-current', 'location')
   })
 
   test('dragging a row moves its Question, into another Section too, as one undoable step', async ({ page }) => {
@@ -223,17 +226,17 @@ test.describe('the Exam Outline', () => {
     await page.getByRole('button', { name: 'Show Exam Outline' }).click()
 
     // Below the Short Answer row: out of its own Section and into another.
-    const below = (await outlineRow(page, 'Explain osmosis').boundingBox())!
-    const from = (await outlineRow(page, 'Cell membranes').boundingBox())!
-    await page.mouse.move(from.x + 40, from.y + 10)
+    // A Question moves only from its grip, which shows on hover.
+    const below = (await outlineItem(page, 3).boundingBox())!
+    await outlineItem(page, 1).hover()
+    const grip = (await outlineItem(page, 1).locator('.exam-outline-grip').boundingBox())!
+    await page.mouse.move(grip.x + grip.width / 2, grip.y + grip.height / 2)
     await page.mouse.down()
     await page.mouse.move(below.x + 40, below.y + below.height - 3, { steps: 12 })
     await page.mouse.up()
 
     await expect.poll(() => renderedIds(page)).toEqual(['mc2', 'sa1', 'mc1'])
-    await expect(outline(page).getByRole('button').filter({ hasText: /^\d/ })).toHaveText([
-      /^1\..*Enzyme kinetics/, /^2\..*Explain osmosis/, /^3\..*Cell membranes/,
-    ])
+    await expect(outlineRow(page, 3)).toContainText('Multiple choice')
 
     await page.getByRole('button', { name: 'Undo' }).click()
     await expect.poll(() => renderedIds(page)).toEqual(['mc1', 'mc2', 'sa1'])
