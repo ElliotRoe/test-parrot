@@ -1631,10 +1631,12 @@ function QuestionBankTabsPane({
         same line: its name where the Exam's name is, and its open banks as
         tabs where the Exam's menus are. */}
     <header className="bank-pane-header">
-    <div className="bank-pane-title">
+    {/* As the Exam's bar has its name over its menus: a quiet name, at the
+        height the Exam's sits, over the tabs. */}
+    <h2 className="bank-pane-title">
       <Database aria-hidden="true" />
-      <h2>Question Banks</h2>
-    </div>
+      Question Banks
+    </h2>
     {tabsTrailing && <div className="bank-tabs-trailing">{tabsTrailing}</div>}
     <div className="bank-tabs-bar">
       <div className="bank-tabs" role="tablist" aria-label="Open Question Banks">
@@ -2598,20 +2600,35 @@ function ExamEditor({
     }
   }
 
-  // The Question Bank Pane's toggle: the bank's icon while it is closed, an X
-  // while it is open, in the same top-right corner either way.
-  const bankToggle = (
+  // The Question Bank Pane's two controls, each in the top-right corner of
+  // its own bar: the pane's X, which stays an X as the pane slides away with
+  // it, and the bank's icon in the Exam's bar once the pane is closed.
+  const bankClose = (
     <button
       type="button"
       className="toolbar-icon-button pane-toggle"
-      aria-label={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
-      title={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
+      aria-label="Hide Question Bank"
+      title="Hide Question Bank"
       aria-expanded={bankOpen}
       aria-controls="question-bank-pane"
       data-pane-toggle=""
-      onClick={() => setPaneOpen('bank', !bankOpen)}
+      onClick={() => setPaneOpen('bank', false)}
     >
-      {bankOpen ? <X aria-hidden="true" /> : <Database aria-hidden="true" />}
+      <X aria-hidden="true" />
+    </button>
+  )
+  const bankShow = (
+    <button
+      type="button"
+      className="toolbar-icon-button pane-toggle"
+      aria-label="Show Question Bank"
+      title="Show Question Bank"
+      aria-expanded={bankOpen}
+      aria-controls="question-bank-pane"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('bank', true)}
+    >
+      <Database aria-hidden="true" />
     </button>
   )
   // The Exam Outline's toggle, at a fixed place at the left of the Exam's
@@ -2750,10 +2767,10 @@ function ExamEditor({
             >
               Export
             </button>
-            {/* The one control that opens and closes the Question Bank Pane is
-                always the top-right-most: here after Export while the pane is
-                closed, and at the end of the pane's tab strip while it is open. */}
-            {!bankOpen && bankToggle}
+            {/* The top-right-most control is always the Question Bank Pane's:
+                here after Export, to show it, while it is closed; its own X
+                while it is open. */}
+            {!bankOpen && bankShow}
           </div>
         </header>
   )
@@ -3018,7 +3035,7 @@ function ExamEditor({
             <span>Drop to remove from exam</span>
           </div>}
           <QuestionBankTabsPane
-            tabsTrailing={bankToggle}
+            tabsTrailing={bankClose}
             context={{ examId }}
             service={bankWorkspaces}
             onImportBank={onImportBank}

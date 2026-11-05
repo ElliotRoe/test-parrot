@@ -17,6 +17,27 @@ const DIFFICULTY_ICONS: Record<Difficulty, ReactNode> = {
   hard: <SignalHigh />,
 }
 
+/** Difficulty as a meter of three bars, filled to its level and centred in
+ *  its own box — for a badge with no room for the word. */
+function DifficultyBars({ difficulty }: { difficulty: Difficulty }) {
+  const level = { easy: 1, medium: 2, hard: 3 }[difficulty]
+  return (
+    <svg className="difficulty-bars" viewBox="0 0 12 12" aria-hidden="true">
+      {[4, 7, 10].map((height, index) => (
+        <rect
+          key={height}
+          x={1 + index * 3.75}
+          y={11 - height}
+          width={2.5}
+          height={height}
+          rx={0.75}
+          data-off={index >= level ? '' : undefined}
+        />
+      ))}
+    </svg>
+  )
+}
+
 export function DifficultyBadge({ difficulty, iconOnly = false }: {
   difficulty: Difficulty
   /** The signal alone, where a line has no room for the word; it is still
@@ -30,7 +51,7 @@ export function DifficultyBadge({ difficulty, iconOnly = false }: {
       data-icon-only={iconOnly ? 'true' : undefined}
       title={iconOnly ? DIFFICULTY_LABELS[difficulty] : undefined}
     >
-      {DIFFICULTY_ICONS[difficulty]}
+      {iconOnly ? <DifficultyBars difficulty={difficulty} /> : DIFFICULTY_ICONS[difficulty]}
       {iconOnly
         ? <span className="sr-only">{DIFFICULTY_LABELS[difficulty]}</span>
         : DIFFICULTY_LABELS[difficulty]}

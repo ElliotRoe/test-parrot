@@ -26,7 +26,7 @@
   --editor-bar-height: 64px;
   /* Every divider: a rule between two parts of the app — under a header,
      between panes, down an outline, across a dialog — is this one colour. */
-  --divider: #e8dfd2;
+  --divider: #d3c2ac;
   --bank-frame-line: #d3c2ac;
 
   /* Badge tints. Muted enough to sit inside a page of prose without shouting,
@@ -458,8 +458,11 @@ button { cursor: pointer; }
 }
 .question-line .badge svg { display: none; }
 /* Difficulty by its signal alone: the rising bars say which of the three. */
-.question-line .badge-difficulty[data-icon-only] { width: 22px; justify-content: center; padding: 0; }
-.question-line .badge-difficulty[data-icon-only] svg { display: block; width: 15px; height: 15px; }
+.question-line .badge-difficulty[data-icon-only] { width: 24px; justify-content: center; padding: 0; }
+.question-line .badge-difficulty[data-icon-only] svg { display: block; width: 12px; height: 12px; }
+/* The level's bars are solid; the ones above it are faint. */
+.difficulty-bars rect { fill: currentColor; }
+.difficulty-bars rect[data-off] { opacity: .28; }
 .question-line-type { flex: 0 0.05 auto !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .question-line-topics { flex: 0 1 auto !important; display: flex; gap: 4px; min-width: 0; overflow: hidden; }
 .question-line-topics .badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -544,23 +547,25 @@ button { cursor: pointer; }
 .bank-pane-header {
   flex: none; height: var(--editor-bar-height); box-sizing: border-box; padding: 0 12px 0 16px;
   background: #fffaf3;
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title close' 'tabs close';
-  grid-template-rows: 1fr auto; column-gap: 8px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'title close' 'tabs close';
+  grid-template-rows: auto 1fr; column-gap: 8px;
   border-bottom: 1px solid var(--divider); background: #fffaf3;
 }
-.bank-pane-title { grid-area: title; align-self: end; display: flex; align-items: center; gap: 6px; min-width: 0; padding-bottom: 2px; color: #6e5b4d; }
-.bank-pane-title svg { flex: none; width: 14px; height: 14px; }
-.bank-pane-title h2 {
-  margin: 0; overflow: hidden; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+.bank-pane-title {
+  grid-area: title; align-self: start; display: flex; align-items: center; gap: 5px;
+  margin: 0; padding-top: 13px; min-width: 0; overflow: hidden;
+  color: #9a8777; font-size: 11px; font-weight: 600; letter-spacing: .05em;
   text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap;
 }
+.bank-pane-title svg { flex: none; width: 12px; height: 12px; stroke-width: 2.2; }
 .bank-tabs-pane > .question-bank { flex: 1 1 auto; height: auto; min-height: 0; border: 0; border-radius: 0; background: transparent; }
 .bank-tabs-pane > .question-bank .question-bank-toolbar { background: var(--app-ground); }
 /* The tabs sit on the header's rule; the active one is underlined on it. */
 .bank-tabs-bar {
   grid-area: tabs; position: relative; z-index: 1; margin-bottom: -1px; min-width: 0;
   display: flex; align-items: flex-end; gap: 2px; padding: 2px 0 0;
-  /* The first tab's name starts where the bank's own content does. */
+  /* The first tab's name starts under the pane's name. */
   margin-left: -6px;
 }
 /* Tabs give up width to each other before the strip scrolls, and the plus
@@ -1053,14 +1058,16 @@ button { cursor: pointer; }
    heading is no taller with it. The PDF and DOCX adapters right-align it too. */
 .answer-key-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
 .answer-key-total { font: 400 15px/1.2 Georgia, serif; }
-/* An entry's `[n]`, when it has Points, follows its blank, before any Question Metadata. */
-.answer-key-entry--pointed { grid-template-columns: 42px 56px auto minmax(0, 1fr); }
 .answer-key-points { white-space: nowrap; }
 .answer-key-section { margin: 0 0 10px; font: 700 17px/1.2 Georgia, serif; }
 .answer-key-entry {
   display: grid; grid-template-columns: 42px 56px minmax(0, 1fr);
   align-items: center; gap: 8px; margin: 0 0 8px;
 }
+/* An entry's `[n]`, when it has Points, follows its blank, before any
+   Question Metadata. After the rule above, which it narrows: before it, it
+   lost, and the tags wrapped under the number and were cut off there. */
+.answer-key-entry--pointed { grid-template-columns: 42px 56px auto minmax(0, 1fr); }
 .answer-key-answer { min-height: 1.3em; border-bottom: 1px solid #332a24; text-align: center; }
 /* A Suggested Answer takes the lines under its entry, starting under the
    blank. The PDF and DOCX adapters indent it by the same 50px. */
