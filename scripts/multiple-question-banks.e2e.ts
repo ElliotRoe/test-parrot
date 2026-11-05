@@ -35,7 +35,7 @@ test('Home creates and independently reopens durable Question Banks', async ({ p
   await createQuestion(page, 'What is the symbol for oxygen?', 'Short answer')
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
   // Home lists by name.
-  const bankCards = page.getByRole('list', { name: 'Exams and Question Banks' }).getByRole('listitem')
+  const bankCards = page.getByRole('list', { name: 'Resources' }).getByRole('listitem')
   await expect(bankCards).toHaveCount(2)
   await expect(bankCards.nth(0)).toContainText('Biology')
   await expect(bankCards.nth(1)).toContainText('Chemistry')

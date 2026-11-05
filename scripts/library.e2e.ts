@@ -284,13 +284,13 @@ test('search finds names and Topics in every Folder, says where each lives, and 
   await expect(item(page, 'Forces')).toBeVisible()
 })
 
-test('grid and list views, remembered by the browser, with a Type filter in the address', async ({ page }) => {
+test('grid and list views, remembered by the browser', async ({ page }) => {
   await page.goto('/')
   await newFolder(page, 'Maths')
   await newBankNamed(page, 'Fractions')
   await page.goto('/')
   await expect(page.getByRole('list', { name: 'Folders' })).toBeVisible()
-  await expect(page.getByRole('list', { name: 'Exams and Question Banks' })).toBeVisible()
+  await expect(page.getByRole('list', { name: 'Resources' })).toBeVisible()
 
   await page.getByRole('button', { name: 'List view' }).click()
   await expect(page.getByRole('list', { name: 'Contents' }).getByRole('listitem')).toHaveCount(2)
@@ -300,15 +300,9 @@ test('grid and list views, remembered by the browser, with a Type filter in the 
   await expect(page.getByRole('button', { name: 'List view' })).toHaveAttribute('aria-pressed', 'true')
   await expect(page.getByRole('list', { name: 'Contents' })).toBeVisible()
 
-  await page.getByRole('group', { name: 'Type' }).getByRole('button', { name: 'Question Banks' }).click()
-  await expect(page).toHaveURL(/\?type=question-banks$/)
-  await expect(page.getByRole('list', { name: 'Contents' }).getByRole('listitem')).toHaveText([/Fractions/])
-  await page.reload()
-  await expect(page.getByRole('list', { name: 'Contents' }).getByRole('listitem')).toHaveText([/Fractions/])
-
   await page.getByRole('button', { name: 'Grid view' }).click()
-  await expect(page.getByRole('list', { name: 'Folders' })).toHaveCount(0)
-  await expect(page.getByRole('list', { name: 'Exams and Question Banks' }).getByRole('listitem')).toHaveCount(1)
+  await expect(page.getByRole('list', { name: 'Folders' }).getByRole('listitem')).toHaveCount(1)
+  await expect(page.getByRole('list', { name: 'Resources' }).getByRole('listitem')).toHaveCount(1)
 })
 
 test('below 900px the nav is a drawer and New is a floating button', async ({ page }) => {

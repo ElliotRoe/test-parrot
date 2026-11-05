@@ -59,7 +59,7 @@ test('Recent Exams are ordered by opening, not background authoring writes', asy
   expect(secondId).not.toBe(firstId)
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
   await page.getByRole('link', { name: 'Recent' }).click()
-  const cards = page.getByRole('list', { name: 'Exams and Question Banks' }).getByRole('listitem')
+  const cards = page.getByRole('list', { name: 'Resources' }).getByRole('listitem')
   await expect(cards).toHaveCount(2)
   await expect(cards.nth(0)).toContainText('Second Exam')
   await expect(cards.nth(1)).toContainText('First Exam')
