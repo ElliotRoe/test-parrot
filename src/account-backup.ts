@@ -336,7 +336,11 @@ function deleteDatabase(name: string): Promise<void> {
     const request = indexedDB.deleteDatabase(name)
     request.onsuccess = () => resolve()
     request.onerror = () => reject(request.error)
-    request.onblocked = () => reject(new Error(`${name} is still open in another tab.`))
+    // Blocked means another tab still holds it. The deletion stays queued
+    // and finishes once that tab lets go (every connection closes when asked),
+    // so wait for it: giving up here would leave it queued in front of every
+    // database the app opens next, and the page would hang blank.
+    request.onblocked = () => console.warn(`${name} is open in another tab; waiting for it to close.`)
   })
 }
 

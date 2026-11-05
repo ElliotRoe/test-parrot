@@ -3350,10 +3350,9 @@ export default function App({
     navigate('/imports', { replace: true })
     openImport()
   }, [route, openImport])
-  // The Exams and Question Banks lists became Home's Type filter (ADR-0051).
+  // The Exams and Question Banks lists became Home (ADR-0051).
   useEffect(() => {
-    if (route === '/exams') replaceRoute('/?type=exams')
-    if (route === '/question-banks') replaceRoute('/?type=question-banks')
+    if (route === '/exams' || route === '/question-banks') replaceRoute('/')
   }, [route])
   /** A file dropped while the Import dialog is open belongs to it — an
    *  assistant's corrected file replaces the one under review — rather than

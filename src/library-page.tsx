@@ -30,9 +30,9 @@ import {
 import { AppShell, type Crumb } from './app-shell'
 import { LibraryActionsContext, type LibraryActions } from './library-actions'
 import type { PersistentStorageStatus } from './durable-storage'
-import { DifficultyBadge, TopicBadge } from './badges'
+import { TopicBadge } from './badges'
 import { ContextMenu, type MenuItem, type MenuPoint } from './context-menu'
-import { DIFFICULTIES, type Difficulty, type QuestionType } from './exam'
+import { DIFFICULTIES, DIFFICULTY_LABELS, type Difficulty, type QuestionType } from './exam'
 import {
   refKey,
   refOf,
@@ -51,12 +51,6 @@ import { Link } from './site-chrome'
 import { navigate, useLocationSearch } from './use-route'
 import { carriesEntries, DRAG_TYPE, draggedRefs, folderHref, searchEntries, type LibraryView } from './library-routes'
 
-type TypeFilter = 'exams' | 'question-banks' | 'folders'
-const TYPE_FILTERS: { value: TypeFilter; label: string; kind: LibraryEntry['kind'] }[] = [
-  { value: 'exams', label: 'Exams', kind: 'exam' },
-  { value: 'question-banks', label: 'Question Banks', kind: 'bank' },
-  { value: 'folders', label: 'Folders', kind: 'folder' },
-]
 type SortKey = 'name' | 'modified' | 'opened'
 const SORTS: { value: SortKey; label: string }[] = [
   { value: 'name', label: 'Name' },
@@ -161,7 +155,7 @@ function DifficultySpread({ counts, total }: { counts: Partial<Record<Difficulty
         ))}
       </div>
       <div className="difficulty-spread-legend" aria-hidden="true">
-        {shown.map((difficulty) => <span key={difficulty}><DifficultyBadge difficulty={difficulty} /> {counts[difficulty]}</span>)}
+        {shown.map((difficulty) => <span key={difficulty} className={`difficulty-spread-label-${difficulty}`}>{DIFFICULTY_LABELS[difficulty]} {counts[difficulty]}</span>)}
       </div>
     </div>
   )
@@ -278,19 +272,11 @@ function LibraryItem({ entry, handlers }: { entry: LibraryEntry; handlers: ItemH
   return (
     <li {...common}>
       {open(<>
+        <span className="library-card-caption">{name}</span>
         <span className="library-card-preview" aria-hidden="true">
           {entry.kind === 'exam' ? <ExamSheetPreview exam={entry.exam} /> : <BankPreview entry={entry} />}
         </span>
-        <span className="library-card-caption">
-          {name}
-          <span className="library-card-meta">
-            {trash
-              ? `${trash.daysLeft} days left in Trash`
-              : entry.kind === 'exam'
-                ? `${entry.exam.questionCount} ${entry.exam.questionCount === 1 ? 'Question' : 'Questions'} · ${when(entry.lastModifiedAt)}`
-                : `Modified ${when(entry.lastModifiedAt)}`}
-          </span>
-        </span>
+        {trash && <span className="library-card-meta">{trash.daysLeft} days left in Trash</span>}
       </>)}
       {locationText}
       {menuButton}
@@ -354,7 +340,6 @@ export function LibraryPage({
     if (view.kind === 'folder' && view.folderId && folderState === 'ok') void library.openedFolder(view.folderId)
   }, [library, view, folderState])
 
-  const typeFilter = TYPE_FILTERS.find((filter) => filter.value === params.get('type')) ?? null
   const defaultSort: SortKey = view.kind === 'recent' ? 'opened' : view.kind === 'search' ? 'modified' : 'name'
   const sort = (SORTS.find((option) => option.value === params.get('sort'))?.value) ?? defaultSort
   const setParam = (key: string, value: string | null) => {
@@ -374,11 +359,10 @@ export function LibraryPage({
     else if (view.kind === 'starred') entries = snapshot.entries.filter((entry) => entry.starred && live(entry))
     else if (view.kind === 'trash') entries = snapshot.entries.filter((entry) => entry.trashedAt)
     else entries = searchEntries(snapshot.entries, folders, view.query)
-    if (typeFilter) entries = entries.filter((entry) => entry.kind === typeFilter.kind)
     if (view.kind === 'recent') return [...entries].sort((left, right) => recency(right).localeCompare(recency(left)))
     if (view.kind === 'trash') return [...entries].sort((left, right) => (right.trashedAt ?? '').localeCompare(left.trashedAt ?? ''))
     return sortEntries(entries, sort)
-  }, [snapshot, folders, view, typeFilter, sort])
+  }, [snapshot, folders, view, sort])
 
   const selectedEntries = visible.filter((entry) => selected.has(refKey(entry)))
   const inTrashView = view.kind === 'trash'
@@ -492,7 +476,6 @@ export function LibraryPage({
     const key = refKey(entry)
     // A menu on one of several selected things acts on all of them.
     const targets = selected.has(key) && selectedEntries.length > 1 ? selectedEntries : [entry]
-    if (!selected.has(key)) setSelected(new Set([key]))
     setMenu({ point, side: fromButton ? 'left' : 'right', targets })
   }
 
@@ -591,7 +574,6 @@ export function LibraryPage({
     )
   }
 
-  const filterKinds = view.kind === 'recent' ? TYPE_FILTERS.filter((filter) => filter.kind !== 'folder') : TYPE_FILTERS
   const folderEntries = visible.filter((entry) => entry.kind === 'folder')
   const resourceEntries = visible.filter((entry) => entry.kind !== 'folder')
   const list = (entries: LibraryEntry[], label: string, className: string) => entries.length > 0 && (
@@ -624,14 +606,24 @@ export function LibraryPage({
       }}>
         <header className="library-header">
           <h1>{title}</h1>
-          {inTrashView && (
-            <p className="library-trash-note">
-              Things in Trash are deleted for good after {TRASH_DAYS} days.
-              {visible.length > 0 && <button type="button" className="secondary-button" onClick={() => setForever('empty')}>Empty Trash</button>}
-            </p>
-          )}
+          <div className="library-view-controls">
+            {inTrashView && visible.length > 0 && <button type="button" className="secondary-button" onClick={() => setForever('empty')}>Empty Trash</button>}
+            {view.kind !== 'recent' && view.kind !== 'trash' && (
+              <label className="library-sort">
+                <span>Sort by</span>
+                <select value={sort} onChange={(event) => setParam('sort', event.target.value === defaultSort ? null : event.target.value)}>
+                  {SORTS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
+                </select>
+              </label>
+            )}
+            <div className="library-layout-toggle" role="group" aria-label="Layout">
+              <button type="button" aria-label="List view" aria-pressed={layout === 'list'} onClick={() => setLayout('list')}><List aria-hidden="true" /></button>
+              <button type="button" aria-label="Grid view" aria-pressed={layout === 'grid'} onClick={() => setLayout('grid')}><LayoutGrid aria-hidden="true" /></button>
+            </div>
+          </div>
         </header>
-        {selectedEntries.length > 0 ? (
+        {inTrashView && <p className="library-trash-note">Things in Trash are deleted for good after {TRASH_DAYS} days.</p>}
+        {selectedEntries.length > 0 && (
           <div className="library-toolbar library-selection" role="toolbar" aria-label="Selection">
             <button type="button" className="question-bank-action" aria-label="Clear selection" onClick={() => setSelected(new Set())}><X /></button>
             <span className="library-selection-count">{selectedEntries.length} selected</span>
@@ -646,40 +638,9 @@ export function LibraryPage({
               <button type="button" className="library-tool" onClick={() => void requestTrash(selectedEntries)}><Trash2 aria-hidden="true" />Delete</button>
             </>}
           </div>
-        ) : (
-          <div className="library-toolbar">
-            <div className="library-filters" role="group" aria-label="Type">
-              {filterKinds.map((filter) => (
-                <button
-                  key={filter.value}
-                  type="button"
-                  className="library-chip"
-                  aria-pressed={typeFilter?.value === filter.value}
-                  onClick={() => setParam('type', typeFilter?.value === filter.value ? null : filter.value)}
-                >
-                  <EntryIcon kind={filter.kind} />
-                  {filter.label}
-                </button>
-              ))}
-            </div>
-            <div className="library-view-controls">
-              {view.kind !== 'recent' && view.kind !== 'trash' && (
-                <label className="library-sort">
-                  <span>Sort by</span>
-                  <select value={sort} onChange={(event) => setParam('sort', event.target.value === defaultSort ? null : event.target.value)}>
-                    {SORTS.map((option) => <option key={option.value} value={option.value}>{option.label}</option>)}
-                  </select>
-                </label>
-              )}
-              <div className="library-layout-toggle" role="group" aria-label="Layout">
-                <button type="button" aria-label="List view" aria-pressed={layout === 'list'} onClick={() => setLayout('list')}><List aria-hidden="true" /></button>
-                <button type="button" aria-label="Grid view" aria-pressed={layout === 'grid'} onClick={() => setLayout('grid')}><LayoutGrid aria-hidden="true" /></button>
-              </div>
-            </div>
-          </div>
         )}
         {!snapshot ? null : visible.length === 0 ? (
-          <EmptyLibrary view={view} filtered={Boolean(typeFilter)} />
+          <EmptyLibrary view={view} />
         ) : layout === 'list' ? (
           <div className="library-list-frame">
             <div className="library-list-head" aria-hidden="true">
@@ -694,8 +655,8 @@ export function LibraryPage({
           <>
             {folderEntries.length > 0 && <h2 className="library-section-label">Folders</h2>}
             {list(folderEntries, 'Folders', 'library-folder-grid')}
-            {resourceEntries.length > 0 && <h2 className="library-section-label">Exams and Question Banks</h2>}
-            {list(resourceEntries, 'Exams and Question Banks', 'library-card-grid')}
+            {resourceEntries.length > 0 && <h2 className="library-section-label">Resources</h2>}
+            {list(resourceEntries, 'Resources', 'library-card-grid')}
           </>
         )}
       </div>
@@ -785,10 +746,8 @@ export function LibraryPage({
   )
 }
 
-function EmptyLibrary({ view, filtered }: { view: LibraryView; filtered: boolean }) {
-  const [heading, body] = filtered
-    ? ['Nothing of that type here', 'Clear the Type filter to see everything.']
-    : view.kind === 'trash' ? ['Trash is empty', `Things you delete wait here for ${TRASH_DAYS} days.`]
+function EmptyLibrary({ view }: { view: LibraryView }) {
+  const [heading, body] = view.kind === 'trash' ? ['Trash is empty', `Things you delete wait here for ${TRASH_DAYS} days.`]
       : view.kind === 'starred' ? ['Nothing starred yet', 'Star Folders, Exams and Question Banks to find them here.']
         : view.kind === 'recent' ? ['Nothing opened yet', 'Exams and Question Banks you open will show here.']
           : view.kind === 'search' ? (view.query ? ['No results', 'Nothing’s name or Topic matches that.'] : ['Search', 'Type a name or a Topic.'])

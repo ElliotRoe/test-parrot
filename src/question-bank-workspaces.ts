@@ -16,6 +16,7 @@ import {
   MEDIA_ASSET_STORE,
   STORAGE_NAME,
   STORAGE_VERSION,
+  releasedOnVersionChange,
   upgradeRegistry,
 } from './storage-schema'
 
@@ -241,7 +242,7 @@ function openRegistry(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(STORAGE_NAME, STORAGE_VERSION)
     request.onupgradeneeded = (event) => upgradeRegistry(request.result, request.transaction, event.oldVersion)
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => resolve(releasedOnVersionChange(request.result))
     request.onerror = () => reject(request.error)
     request.onblocked = () => reject(new Error(`Could not open ${STORAGE_NAME}`))
   })
