@@ -21,6 +21,8 @@ export type OutlineEntry = {
   question: Question
   /** The number it prints with — the first of a Matching set's run. */
   number: number
+  /** How many numbers it takes: one, or one per Item of a Matching set. */
+  span: number
   /** As a teacher would say it: `4`, or `4–7` for a Matching set of four. */
   numberLabel: string
 }
@@ -44,6 +46,7 @@ export function outlineOf(exam: Exam, arrangement: Arrangement): OutlineSection[
       const entry: OutlineEntry = {
         question,
         number,
+        span,
         numberLabel: span > 1 ? `${number}–${number + span - 1}` : String(number),
       }
       number += span

@@ -1633,7 +1633,7 @@ function QuestionBankTabsPane({
     <header className="bank-pane-header">
     <div className="bank-pane-title">
       <FileQuestionMark aria-hidden="true" />
-      <h2>Question Bank</h2>
+      <h2>Question Banks</h2>
     </div>
     {tabsTrailing && <div className="bank-tabs-trailing">{tabsTrailing}</div>}
     <div className="bank-tabs-bar">

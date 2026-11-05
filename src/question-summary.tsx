@@ -1,7 +1,8 @@
-// One Question as a single row: what a teacher scans for when picking one out
-// of a list. The Question Bank Pane and the Exam Outline both show Questions
-// this way, so they are drawn by this one component — the outline adds the
-// number the Question prints with, and neither list's own actions belong here.
+// One Question as a row: what a teacher scans for when picking one out of a
+// list. The Question Bank Pane shows its stem and classification; the Exam
+// Outline, where the page beside it already shows the stem, shows one line —
+// its number and the same classification — drawn from the same parts so the
+// two lists agree about what a Question is.
 //
 // A row is a projection, not a rendering. It shows one line of the stem and
 // the classification; answer choices and correctness stay behind the editor,
@@ -56,5 +57,25 @@ export function QuestionSummary({ question, number }: {
         </span>
       )}
     </div>
+  )
+}
+
+/** The Exam Outline's one line: the number it prints with, then its Question
+ *  Type, Difficulty, Topics and Points. No stem — the page beside it has it. */
+export function QuestionLine({ question, number }: { question: Question; number: number }) {
+  const points = pointsOfQuestion(question)
+  const topics = topicsOf(question)
+  return (
+    <span className="question-line">
+      <span className="question-row-number">{number}.</span>
+      <span className="question-line-type">{SECTION_LABELS[question.type]}</span>
+      {question.difficulty && <DifficultyBadge difficulty={question.difficulty} />}
+      {topics.length > 0 && <span className="question-line-topics">
+        {topics.map((topic) => <TopicBadge topic={topic} key={topic} />)}
+      </span>}
+      {points !== undefined && (
+        <span className="question-row-points" title={pointsLabel(points)}>{points} pt{points === 1 ? '' : 's'}</span>
+      )}
+    </span>
   )
 }

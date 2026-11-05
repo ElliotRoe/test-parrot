@@ -75,21 +75,26 @@ export const OUTLINE_ZONE_SELECTOR = '[data-outline-drop-zone]'
 const OUTLINE_ROW_SELECTOR = '[data-outline-question-id]'
 const OUTLINE_EMPTY_SECTION_SELECTOR = '[data-outline-empty-section]'
 
-/** Everything on the Exam Outline a gesture can land on, read off its rows. */
+/** Everything on the Exam Outline a gesture can land on, read off its rows.
+ *  A Matching set has a row per Item: its line above is on its first row and
+ *  its line below on its last. */
 function outlineFieldOf(zone: Element): Omit<DropField, 'openNewSection'> {
-  const candidates: DropCandidate[] = [
-    ...zone.querySelectorAll<HTMLElement>(OUTLINE_ROW_SELECTOR),
-  ].flatMap((row) => {
+  const byId = new Map<string, DropCandidate>()
+  for (const row of zone.querySelectorAll<HTMLElement>(OUTLINE_ROW_SELECTOR)) {
     const { outlineQuestionId: questionId, sectionId } = row.dataset
-    if (!questionId || !sectionId) return []
+    if (!questionId || !sectionId) continue
     const bounds = row.getBoundingClientRect()
-    return [{
+    const after = { y: bounds.bottom, left: bounds.left, right: bounds.right }
+    const seen = byId.get(questionId)
+    if (seen) seen.after = after
+    else byId.set(questionId, {
       questionId,
       sectionId,
       before: { y: bounds.top, left: bounds.left, right: bounds.right },
-      after: { y: bounds.bottom, left: bounds.left, right: bounds.right },
-    }]
-  })
+      after,
+    })
+  }
+  const candidates = [...byId.values()]
   const emptySections: EmptySection[] = [
     ...zone.querySelectorAll<HTMLElement>(OUTLINE_EMPTY_SECTION_SELECTOR),
   ].flatMap((element) => {

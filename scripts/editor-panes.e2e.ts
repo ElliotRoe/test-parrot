@@ -190,7 +190,7 @@ test.describe('the Exam Outline', () => {
     await expect(outline(page)).toBeVisible()
     // Grouped under its Section Headings, one numbered row per Question.
     await expect(outlineRow(page, 'Cell membranes')).toContainText('1.')
-    await expect(outlineRow(page, 'Cell membranes')).toContainText('2 points')
+    await expect(outlineRow(page, 'Cell membranes')).toContainText('2 pts')
     await expect(outlineRow(page, 'Explain osmosis')).toContainText('3.')
 
     await page.reload()

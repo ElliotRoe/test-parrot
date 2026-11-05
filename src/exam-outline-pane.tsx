@@ -11,9 +11,17 @@
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
 import type { Arrangement, Exam, QuestionType } from './exam'
 import { outlineOf } from './exam-outline'
-import { QuestionSummary } from './question-summary'
+import { QuestionLine } from './question-summary'
 import type { WorkspaceDrag } from './use-workspace-drag'
 import { dropStateOf } from './workspace-drag'
+
+/** Where a set of several rows draws a drop line: above its first, below its
+ *  last. */
+function edgeDrop(state: 'before' | 'after' | null, item: number, span: number) {
+  if (state === 'before' && item === 0) return 'before'
+  if (state === 'after' && item === span - 1) return 'after'
+  return undefined
+}
 
 /** How long a Question chosen from the outline stays marked on the page. */
 const FLASH_MS = 1_200
@@ -199,14 +207,19 @@ export function ExamOutline({
                 </p>
               ) : (
                 <ol className="exam-outline-list">
-                  {entries.map(({ question, numberLabel }) => (
-                    <li key={question.id}>
+                  {/* One line per number on the test: a Matching set takes a
+                      line for each of its Items, and every one of them stands
+                      for — moves, and goes to — the whole set. */}
+                  {entries.flatMap(({ question, number, span }) => Array.from(
+                    { length: span },
+                    (_, item) => (
+                    <li key={`${question.id}-${item}`}>
                       <button
                         type="button"
-                        className="question-bank-row exam-outline-row"
+                        className="exam-outline-row"
                         data-outline-question-id={question.id}
                         data-section-id={section.id}
-                        data-drop={dropStateOf(drag.intent, question.id) ?? undefined}
+                        data-drop={edgeDrop(dropStateOf(drag.intent, question.id), item, span)}
                         data-dragging={drag.draggedQuestionIds.has(question.id) ? 'true' : undefined}
                         aria-current={inView === question.id ? 'location' : undefined}
                         {...dragHandlers(question.id, question.type)}
@@ -218,10 +231,10 @@ export function ExamOutline({
                           reveal(question.id)
                         }}
                       >
-                        <QuestionSummary question={question} number={numberLabel} />
+                        <QuestionLine question={question} number={number + item} />
                       </button>
                     </li>
-                  ))}
+                  )))}
                 </ol>
               )}
             </li>
