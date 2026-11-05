@@ -40,6 +40,9 @@ export type QuestionBankFilter = {
   /** Sorts applied after `sort`, in order, among Questions it leaves equal.
    *  Absent on a filter saved before there could be more than one. */
   thenBy?: readonly QuestionBankSort[]
+  /** The teacher chose these sorts, so they are shown as such — even Newest,
+   *  the order the bank has with nothing chosen. */
+  sortChosen?: true
 }
 
 /** The unfiltered bank: every question, newest first. */

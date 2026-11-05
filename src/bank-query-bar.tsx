@@ -6,7 +6,7 @@
 // filter as a chip naming its values, and a "+ Filter" to add another — and
 // that line is not there at all while nothing is set. A chip opens a card to
 // change what it holds; a filter chip's × takes it away. Newest first is the
-// order with nothing set, so it is never shown as a sort of its own. Nothing
+// order with nothing set; chosen, it shows as a sort like any other. Nothing
 // here is authoring: the filter is the workspace's.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
@@ -42,18 +42,25 @@ const sortLabel = (sort: QuestionBankSort) =>
   SORT_OPTIONS.find((option) => option.value === sort)?.label ?? sort
 
 /** The sorts the teacher has set, in order — none while the bank is in its
- *  own order, newest first. */
+ *  own order, newest first, and nobody has chosen it. */
 function sortsOf(filter: QuestionBankFilter): QuestionBankSort[] {
   const sorts = [filter.sort ?? 'newest', ...(filter.thenBy ?? [])]
-  return sorts.length === 1 && sorts[0] === 'newest' ? [] : sorts
+  return !filter.sortChosen && sorts.length === 1 && sorts[0] === 'newest' ? [] : sorts
 }
 
-/** The filter with exactly these sorts set. */
+/** The filter with exactly these sorts set — or, with none, in the bank's
+ *  own order again. */
 function withSorts(filter: QuestionBankFilter, sorts: readonly QuestionBankSort[]): QuestionBankFilter {
   const [sort = 'newest', ...thenBy] = sorts
-  const { thenBy: _previous, ...rest } = filter
-  void _previous
-  return { ...rest, sort, ...(thenBy.length > 0 ? { thenBy } : {}) }
+  const { thenBy: _thenBy, sortChosen: _chosen, ...rest } = filter
+  void _thenBy
+  void _chosen
+  return {
+    ...rest,
+    sort,
+    ...(thenBy.length > 0 ? { thenBy } : {}),
+    ...(sorts.length > 0 ? { sortChosen: true as const } : {}),
+  }
 }
 
 /** A small card anchored under a control, portalled so the pane's own
@@ -152,11 +159,8 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
     setOpen((current) => current && current.anchor === anchor ? null : { menu, anchor })
 
   const sortCard = () => {
-    // Newest first is the bank's own order, so once a sort is set it is no
-    // sort to add after it; only what has not been used yet can be added.
-    const addable = sorts.length === 0
-      ? SORT_OPTIONS
-      : SORT_OPTIONS.filter(({ value }) => value !== 'newest' && !sorts.includes(value))
+    // Only what is not used yet can be added after the sorts already set.
+    const addable = SORT_OPTIONS.filter(({ value }) => !sorts.includes(value))
     return <>
       {sorts.length > 0 && <>
         <p className="bank-query-menu-title">Sorted by</p>
@@ -166,7 +170,7 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
             <span className="bank-query-sort-name">{sortLabel(sort)}</span>
             <button
               type="button"
-              className="bank-chip-remove"
+              className="bank-query-sort-remove"
               aria-label={`Remove sort by ${sortLabel(sort)}`}
               onClick={() => onChange(withSorts(filter, sorts.filter((other) => other !== sort)))}
             >
@@ -183,8 +187,7 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
           className="bank-query-item"
           key={option.value}
           onClick={() => {
-            // Newest on its own is the order with nothing set.
-            onChange(withSorts(filter, option.value === 'newest' ? [] : [...sorts, option.value]))
+            onChange(withSorts(filter, [...sorts, option.value]))
             close()
           }}
         >

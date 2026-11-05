@@ -4184,8 +4184,13 @@ button.pop-over-chip-option[aria-pressed='true'] svg { visibility: visible; }
 .bank-query-sort-row { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; }
 .bank-query-sort-order { width: 32px; color: #9a8777; font-size: 12px; }
 .bank-query-sort-name { flex: 1; color: #332a24; }
-.bank-query-sort-row .bank-chip-remove { color: #8a7666; }
-.bank-query-sort-row .bank-chip-remove:hover { color: var(--paper-danger); background: var(--paper-danger-wash); }
+.bank-query-sort-remove {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px;
+  padding: 0; border: 0; border-radius: 4px; color: #8a7666; background: transparent;
+}
+.bank-query-sort-remove svg { width: 14px; height: 14px; }
+.bank-query-sort-remove:hover { color: var(--paper-danger); background: var(--paper-danger-wash); }
+.bank-query-sort-remove:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 .bank-chip {
   display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
   border: 1px solid #d9c4ae; border-radius: 999px; color: var(--paper-accent);
