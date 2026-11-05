@@ -6,7 +6,7 @@ import {
   FileText,
   FileType,
   Image,
-  FileQuestionMark,
+  Database,
   MousePointer2,
   NotebookPen,
   PencilLine,
@@ -134,7 +134,7 @@ const STEPS = [
   },
   {
     title: 'Keep them in a Question Bank',
-    Icon: FileQuestionMark,
+    Icon: Database,
     text:
       'Every question gets a topic and a difficulty, so the one you want is a filter away. A bank is yours to reuse in as many exams as you like.',
   },

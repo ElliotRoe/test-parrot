@@ -1,5 +1,5 @@
 import { useEffect, useId, useMemo, useRef, useState, type ReactNode } from 'react'
-import { ChevronRight, FileText, ImageIcon, FileQuestionMark, UploadCloud, type LucideIcon } from 'lucide-react'
+import { ChevronRight, FileText, ImageIcon, Database, UploadCloud, type LucideIcon } from 'lucide-react'
 import {
   RECORD_PART_TYPE_LABELS,
   RECORD_TYPE_LABELS,
@@ -92,7 +92,7 @@ const plural = (count: number, singular: string) =>
  * section.
  */
 const KINDS = {
-  bank: { Icon: FileQuestionMark, noun: 'Question Bank' },
+  bank: { Icon: Database, noun: 'Question Bank' },
   exam: { Icon: FileText, noun: 'Test' },
 } satisfies Record<string, { Icon: LucideIcon; noun: string }>
 type Kind = keyof typeof KINDS

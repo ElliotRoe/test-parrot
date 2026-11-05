@@ -143,7 +143,7 @@ import {
   Heading,
   Import,
   History,
-  FileQuestionMark,
+  Database,
   ListChecks,
   ListOrdered,
   List,
@@ -983,7 +983,7 @@ function QuestionDialog({
           {ownerName && (
             <div className="front-matter-field">
               <span className="front-matter-label">
-                <FileQuestionMark />
+                <Database />
                 Question Bank
               </span>
               <span className="front-matter-value front-matter-stated">{ownerName}</span>
@@ -1632,7 +1632,7 @@ function QuestionBankTabsPane({
         tabs where the Exam's menus are. */}
     <header className="bank-pane-header">
     <div className="bank-pane-title">
-      <FileQuestionMark aria-hidden="true" />
+      <Database aria-hidden="true" />
       <h2>Question Banks</h2>
     </div>
     {tabsTrailing && <div className="bank-tabs-trailing">{tabsTrailing}</div>}
@@ -2611,7 +2611,7 @@ function ExamEditor({
       data-pane-toggle=""
       onClick={() => setPaneOpen('bank', !bankOpen)}
     >
-      {bankOpen ? <X aria-hidden="true" /> : <FileQuestionMark aria-hidden="true" />}
+      {bankOpen ? <X aria-hidden="true" /> : <Database aria-hidden="true" />}
     </button>
   )
   // The Exam Outline's toggle, at a fixed place at the left of the Exam's
