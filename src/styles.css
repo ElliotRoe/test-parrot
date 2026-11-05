@@ -146,16 +146,21 @@ button { cursor: pointer; }
 .document-title:focus { border-color: #b65f43; box-shadow: inset 0 0 0 1px #b65f43; }
 .header-actions, .dialog-actions { display: flex; align-items: center; gap: 10px; }
 .header-actions { flex: none; align-self: stretch; justify-content: flex-end; gap: 7px; }
-/* The Question Bank's own button at the bar's end, behind a full-height rule. */
-.bank-show-slot {
-  align-self: stretch; display: flex; align-items: center;
-  margin: 0 -6px 0 6px; padding-left: 12px; border-left: 1px solid var(--divider);
-  animation: bank-show-in 180ms ease;
+/* The Question Bank Pane's one control, floating at the window's bottom
+   right: over the sheet while the pane is closed, over the pane's own corner
+   while it is open. */
+.bank-dock-toggle {
+  position: fixed; z-index: 70; right: 18px; bottom: 18px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 40px; height: 40px; padding: 0; border: 1px solid var(--divider); border-radius: 10px;
+  color: #6e5b4d; background: #fffaf3; box-shadow: 0 2px 8px rgb(55 42 33 / 14%);
 }
-.bank-show-slot .pane-toggle { width: 38px; height: 38px; border-radius: 8px; }
-.bank-show-slot .pane-toggle svg { width: 19px; height: 19px; }
-@keyframes bank-show-in { from { opacity: 0; } to { opacity: 1; } }
-@media (prefers-reduced-motion: reduce) { .bank-show-slot { animation: none; } }
+.bank-dock-toggle:hover { color: #332a24; background: #f7eee3; }
+.bank-dock-toggle:focus-visible { outline: 2px solid #8a6a4c; outline-offset: 2px; }
+.bank-dock-toggle svg { width: 19px; height: 19px; }
+/* Open, it is a quiet arrow in the pane's corner rather than a raised button. */
+.bank-dock-toggle[data-open='true'] { border-color: transparent; background: transparent; box-shadow: none; }
+.bank-dock-toggle[data-open='true']:hover { background: rgb(110 91 77 / 10%); }
 .document-edit-actions { display: flex; align-items: center; gap: 1px; padding-right: 6px; border-right: 1px solid var(--paper-outline); }
 /* Its own width, whatever it is saying. The four states are four different
    sentences, and this changes on every keystroke: as text in a wrapping flex
@@ -445,6 +450,19 @@ button { cursor: pointer; }
 .exam-outline-item:hover .exam-outline-row { background: rgb(110 91 77 / 7%); }
 /* The grip a Question is moved by: out of sight until the line is hovered,
    then at its right end. */
+.exam-outline-remove {
+  position: absolute; right: 26px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  padding: 0; border: 0; border-radius: 4px; color: #8a7666; background: transparent; opacity: 0;
+}
+.exam-outline-remove svg { width: 14px; height: 14px; }
+.exam-outline-remove:hover { color: var(--paper-danger); background: var(--paper-danger-wash); }
+.exam-outline-remove:focus-visible { opacity: 1; outline: 2px solid #8a6a4c; outline-offset: -2px; }
+.exam-outline-item:hover .exam-outline-remove { opacity: 1; }
+/* The actions take the place of the Points while the line is hovered. */
+.exam-outline-item:hover .question-row-points { visibility: hidden; }
+/* Selected, as on the page: what Delete Removes and a grip carries. */
+.exam-outline-item[data-selected] .exam-outline-row { background: var(--paper-accent-wash); }
 .exam-outline-grip {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
   display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 24px;

@@ -2095,6 +2095,17 @@ export function ExamPage({
     )
   }, [])
   useLayoutEffect(measureSectionBands, [measureSectionBands, plan, drag.intent])
+  // The sheet moves sideways without repaginating — the Question Bank Pane or
+  // the outline opening or closing re-centres it — so the bands, which hold
+  // where the sheet's left edge is for the controls in its gutter, are read
+  // again whenever the workspace changes size.
+  useEffect(() => {
+    const root = workspace.current
+    if (!root) return
+    const observer = new ResizeObserver(() => measureSectionBands())
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [measureSectionBands])
   useEffect(() => {
     // A target that opens in the sheet's flow grows into place, so the bands
     // are read again once it has.
