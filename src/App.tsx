@@ -98,6 +98,7 @@ import { NO_FILTER, topicOptions, type QuestionBankFilter } from './question-ban
 import { useSelection } from './use-selection'
 import { useWorkspaceDrag } from './use-workspace-drag'
 import { WorkspaceSplit } from './workspace-split'
+import { ExamOutline } from './exam-outline-pane'
 import {
   DEFAULT_EXPORT_CONFIGURATION,
   PicturesNeededError,
@@ -129,6 +130,7 @@ import { storedPicture } from './resolved-pictures'
 import { pendingImagesOfQuestions, withStoredPictures, type PendingImageResolution, type StoredPicture } from './pending-images'
 import {
   AlignCenter,
+  ArrowLeft,
   AlignLeft,
   BookOpenText,
   Captions,
@@ -141,9 +143,10 @@ import {
   Heading,
   Import,
   History,
-  Library,
+  Database,
   ListChecks,
   ListOrdered,
+  List,
   ToggleLeft,
   Link2,
   Pencil,
@@ -178,12 +181,10 @@ import {
 } from './paper-style'
 import { BEFORE_NAVIGATE_EVENT, navigate, replaceRoute, useLocationSearch, useRoute } from './use-route'
 import { Footer } from './site-chrome'
-import { HomePage } from './home-page'
 import { LandingPage, OnboardingPage } from './landing-page'
 import { ConvertPage } from './convert-page'
 import { hasBeenWelcomed } from './welcomed'
-import type { ExamWorkspaceService, QuestionDeletionImpact, QuestionUsage, RecentExam } from './exam-workspaces'
-import { examDeletionMessage, type ExamDeletionSummary } from './exam-deletion'
+import type { ExamWorkspaceService, QuestionUsage, RecentExam } from './exam-workspaces'
 import {
   type QuestionBankResource,
   type QuestionBankSummary,
@@ -197,13 +198,20 @@ import {
   ExportHistoryDrawer,
 } from './export-history'
 import { AppShell } from './app-shell'
+import { LibraryActionsContext, type LibraryActions, type NewKind } from './library-actions'
+import { createLibraryService, type DeletionWarning, type EntryRef, type LibraryService, type LibrarySnapshot } from './library'
+import { LibraryPage } from './library-page'
+import { draggedRefs, folderHref, folderOfRoute, libraryViewOf } from './library-routes'
+import { NameDialog, TrashDialog } from './library-dialogs'
+import { FolderPath } from './folder-path'
+import { BankPicker } from './bank-picker'
+import type { FolderRecord } from './resource-places'
+import { UNTITLED_FOLDER } from './resource-places'
 import { AboutPage, PrivacyPage } from './site-pages'
 import { SettingsPage } from './settings-page'
 import { persistentStorageStatus, requestPersistentStorage, type PersistentStorageStatus } from './durable-storage'
-import { ResourceCollectionPage } from './resource-collection-page'
 import { BankFileDropTarget } from './bank-file-drop'
 import { ImportsPage, WaitingImportPage } from './imports-page'
-import { questionBankCollection, type QuestionBankCollectionItem } from './resource-collections'
 import { QuestionBankExportDialog } from './question-bank-export-dialog'
 import { QuestionBankImportDialog } from './question-bank-import-dialog'
 import { MarginsIcon, PaperStylePreview } from './format-icons'
@@ -242,6 +250,19 @@ const QUESTION_TYPE_ICONS: Record<QuestionType, ReactNode> = {
 }
 
 const STORAGE_NOTICE_DURATION = 8_000
+
+/** The width below which the editor's panes stop being columns beside the
+ *  pages and become sheets over them. The stylesheet breaks at the same width. */
+const NARROW_LAYOUT_QUERY = '(max-width: 880px)'
+const subscribeToNarrowLayout = (onChange: () => void) => {
+  const query = window.matchMedia(NARROW_LAYOUT_QUERY)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+const useNarrowLayout = () => useSyncExternalStore(
+  subscribeToNarrowLayout,
+  () => window.matchMedia(NARROW_LAYOUT_QUERY).matches,
+)
 
 /** The Exam's menu bar, in the order a document's menus are read. */
 const DOCUMENT_MENUS = ['file', 'edit', 'format'] as const
@@ -967,7 +988,7 @@ function QuestionDialog({
           {ownerName && (
             <div className="front-matter-field">
               <span className="front-matter-label">
-                <Library />
+                <Database />
                 Question Bank
               </span>
               <span className="front-matter-value front-matter-stated">{ownerName}</span>
@@ -1156,47 +1177,6 @@ function QuestionDeletionConfirmation({ usage, onCancel, onConfirm }: {
   </DestructiveConfirmation>
 }
 
-function BankDeletionConfirmation({ bank, impact, onCancel, onConfirm }: {
-  bank: QuestionBankCollectionItem
-  impact: readonly QuestionDeletionImpact[]
-  onCancel: () => void
-  onConfirm: () => Promise<void>
-}) {
-  return <DestructiveConfirmation
-    label="Permanently delete Question Bank"
-    title={`Permanently delete “${bank.name}”?`}
-    confirmLabel="Delete Question Bank"
-    onCancel={onCancel}
-    onConfirm={onConfirm}
-  >
-    <p>This cannot be undone.</p>
-    {bank.questionCount === 0 ? <p>This empty Question Bank will be permanently deleted.</p> : <>
-      <p>{bank.questionCount} {bank.questionCount === 1 ? 'Question' : 'Questions'} will be permanently deleted.</p>
-      <p>{impact.length} affected {impact.length === 1 ? 'Exam' : 'Exams'}:</p>
-      {impact.length > 0 && <ul>{impact.map((item) => <li key={item.examId}>{item.title} — {item.questionCount} {item.questionCount === 1 ? 'Question' : 'Questions'} removed</li>)}</ul>}
-      <p><strong>Export History remains unchanged.</strong> Historical exports stay viewable and can be exported again.</p>
-    </>}
-  </DestructiveConfirmation>
-}
-
-/** Deleting an Exam takes its Export History with it (ADR-0047). */
-function ExamDeletionConfirmation({ summary, onCancel, onConfirm }: {
-  summary: ExamDeletionSummary
-  onCancel: () => void
-  onConfirm: () => Promise<void>
-}) {
-  const message = examDeletionMessage(summary)
-  return <DestructiveConfirmation
-    label="Delete Exam"
-    title={message.title}
-    confirmLabel="Delete Exam"
-    onCancel={onCancel}
-    onConfirm={onConfirm}
-  >
-    <p>{message.body}</p>
-  </DestructiveConfirmation>
-}
-
 function ResourcePicker({
   title,
   closeLabel,
@@ -1302,7 +1282,6 @@ function QuestionBankWorkspace({
   examsService,
   onAddToExam,
   onAddManyToExam,
-  onRemoveFromExam,
   beforeCanonicalQuestionCommit,
   onCanonicalQuestionCommitted,
   onQuestionDeleted,
@@ -1325,7 +1304,6 @@ function QuestionBankWorkspace({
   examsService?: ExamWorkspaceService
   onAddToExam?: (question: Question) => void
   onAddManyToExam?: (questions: readonly Question[]) => void
-  onRemoveFromExam?: (questionId: string) => void
   beforeCanonicalQuestionCommit?: () => Promise<void>
   onCanonicalQuestionCommitted?: (question: Question) => void
   onQuestionDeleted?: (questionId: string) => void
@@ -1384,7 +1362,6 @@ function QuestionBankWorkspace({
             onAddManyToExam(questions)
           }
         : undefined}
-      onRemoveFromWorkingCopy={onRemoveFromExam}
       onPasteQuestions={(questionIds) => void (async () => {
         // A paste into a bank makes new Questions like the copied ones, as
         // Duplicate does — into their own bank or any other — and selects
@@ -1459,6 +1436,7 @@ function QuestionBankWorkspace({
 }
 
 function QuestionBankTabsPane({
+  tabsTrailing,
   context,
   service,
   onImportBank,
@@ -1466,15 +1444,19 @@ function QuestionBankTabsPane({
   onQuestionsChange,
   onAddToExam,
   onAddManyToExam,
-  onRemoveFromExam,
   workspaceDrag,
   resourceRevision = 0,
   examsService,
+  library,
   beforeCanonicalQuestionCommit,
   onCanonicalQuestionCommitted,
   onQuestionDeleted,
 }: {
+  /** What ends the tab strip, after the plus: the pane's own close. */
+  tabsTrailing?: ReactNode
   context: BankWorkspaceContext
+  /** Folders, for the picker to browse; without it the picker lists every bank at once. */
+  library?: LibraryService
   service: QuestionBankWorkspaceService
   /** Opens the import dialog — with a file, when one was dropped on the empty
    *  pane that the page-wide drop target did not claim. */
@@ -1483,7 +1465,6 @@ function QuestionBankTabsPane({
   onQuestionsChange?: (questions: readonly Question[]) => void
   onAddToExam?: (question: Question) => void
   onAddManyToExam?: (questions: readonly Question[]) => void
-  onRemoveFromExam?: (questionId: string) => void
   workspaceDrag?: ReturnType<typeof useWorkspaceDrag>
   resourceRevision?: number
   examsService?: ExamWorkspaceService
@@ -1499,10 +1480,13 @@ function QuestionBankTabsPane({
     openBankIds: [],
     activeBankId: null,
     filters: {},
-    pane: { bankPercent: 33 },
+    pane: { bankPercent: 33, bankOpen: true, outlineOpen: false },
   }))
   const [resources, setResources] = useState<Record<string, QuestionBankResource>>({})
-  const [pickerBanks, setPickerBanks] = useState<QuestionBankSummary[] | null>(null)
+  const [picker, setPicker] = useState<{ banks: QuestionBankSummary[]; folders: Map<string, FolderRecord>; startAt: string | null } | null>(null)
+  const setPickerBanks = (value: null) => setPicker(value)
+  /** The Folder this Exam sits in, where banks made or found from here start. */
+  const examFolder = async () => (await examsService?.summary(context.examId))?.parentId ?? null
   const [hydrated, setHydrated] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [creatingBank, setCreatingBank] = useState(false)
@@ -1545,12 +1529,19 @@ function QuestionBankTabsPane({
   const updateResource = (resource: QuestionBankResource) => {
     setResources((current) => ({ ...current, [resource.id]: resource }))
   }
-  const openPicker = async () => setPickerBanks(await service.recent())
+  const openPicker = async () => {
+    const [banks, folders, startAt] = await Promise.all([
+      service.recent(),
+      library ? library.folders() : Promise.resolve(new Map<string, FolderRecord>()),
+      examFolder(),
+    ])
+    setPicker({ banks, folders, startAt: library ? startAt : null })
+  }
   const createBank = async () => {
     setCreatingBank(true)
     setMessage(null)
     try {
-      const bank = await service.create()
+      const bank = await service.create(await examFolder())
       const opened = await service.openTab(stableContext, bank.id)
       if (!opened) throw new Error('The new Question Bank could not be opened.')
       setWorkspace(opened.workspace)
@@ -1613,7 +1604,17 @@ function QuestionBankTabsPane({
     data-import-bank-id={active?.id}
     data-import-bank-name={active?.name}
   >
-    {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}
+    {/* The pane's own header, built as the Exam's is beside it and on the
+        same line: its name where the Exam's name is, and its open banks as
+        tabs where the Exam's menus are. */}
+    <header className="bank-pane-header">
+    {/* As the Exam's bar has its name over its menus: a quiet name, at the
+        height the Exam's sits, over the tabs. */}
+    <h2 className="bank-pane-title">
+      <Database aria-hidden="true" />
+      Question Banks
+    </h2>
+    {tabsTrailing && <div className="bank-tabs-trailing">{tabsTrailing}</div>}
     <div className="bank-tabs-bar">
       <div className="bank-tabs" role="tablist" aria-label="Open Question Banks">
         {workspace.openBankIds.map((id, index) => {
@@ -1657,18 +1658,25 @@ function QuestionBankTabsPane({
       {/* Where Chrome keeps it: a plus at the end of the strip, next to the
           tab that was opened last. With no tabs, the empty state below offers
           the same action with a full label instead. */}
-      {workspace.openBankIds.length > 0 && <button
+      {/* Always there, under the pane's name: with no bank open it is the
+          same action as Get Started's first, kept where it always is. */}
+      <button
         type="button"
         className="open-bank-button"
         aria-label="Open Question Bank"
         title="Open Question Bank"
         disabled={!hydrated}
         onClick={() => void openPicker()}
-      ><Plus /></button>}
+      ><Plus aria-hidden="true" /><span aria-hidden="true">Bank</span></button>
     </div>
+    </header>
+    {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}
     {active ? <QuestionBankWorkspace
       key={active.id}
       bank={active}
+      // The pane's header already says it is the Question Bank, and the tab
+      // says which; the bank keeps its name for a screen reader.
+      heading={<h2 className="sr-only">{active.name}</h2>}
       service={service}
       filter={filter}
       onFilterChange={(nextFilter) => {
@@ -1682,7 +1690,6 @@ function QuestionBankTabsPane({
       examsService={examsService}
       onAddToExam={onAddToExam}
       onAddManyToExam={onAddManyToExam}
-      onRemoveFromExam={onRemoveFromExam}
       beforeCanonicalQuestionCommit={beforeCanonicalQuestionCommit}
       onCanonicalQuestionCommitted={onCanonicalQuestionCommitted}
       onQuestionDeleted={onQuestionDeleted}
@@ -1710,14 +1717,10 @@ function QuestionBankTabsPane({
         if (file) onImportBank(file)
       }}
     >
-      {/* The same chrome as an open bank, so the pane keeps its name while it
-          is empty. What follows is the editor's Get Started page: the three
+      {/* With no bank open the pane is the editor's Get Started page: the three
           ways a bank gets here, in the order they are reached for, on the
           dotted ground Home uses for a space a card has not been put in yet.
           The whole pane is also the drop target for a file. */}
-      <div className="question-bank-toolbar">
-        <header className="question-bank-header"><h2>Question Bank</h2></header>
-      </div>
       <div className="bank-get-started">
         <p className="bank-get-started-title">Get started</p>
         <div className="bank-get-started-actions">
@@ -1749,13 +1752,12 @@ function QuestionBankTabsPane({
         <p className="bank-get-started-hint">Or drop a Question Bank file anywhere here.</p>
       </div>
     </div>}
-    {pickerBanks && <ResourcePicker
-      title="Open Question Bank"
-      closeLabel="Close Question Bank picker"
-      emptyMessage="No Question Banks are available on this device."
-      resources={pickerBanks}
+    {picker && <BankPicker
+      banks={picker.banks}
+      folders={picker.folders}
+      startAt={picker.startAt}
       onChoose={(id) => void chooseBank(id)}
-      onClose={() => setPickerBanks(null)}
+      onClose={() => setPicker(null)}
     />}
   </div>
 }
@@ -1807,6 +1809,7 @@ function QuestionBankPage({
   bank: initialBank,
   bankWorkspaces,
   workspaces,
+  library,
   persistentStorage,
   launchError,
   onImportInto,
@@ -1814,6 +1817,7 @@ function QuestionBankPage({
   bank: QuestionBankResource
   bankWorkspaces: QuestionBankWorkspaceService
   workspaces: ExamWorkspaceService
+  library: LibraryService
   persistentStorage: PersistentStorageStatus
   launchError: string | null
   /** Opens the import dialog with every bank in the file defaulting to
@@ -1869,8 +1873,7 @@ function QuestionBankPage({
 
   return <AppShell
     crumbs={[
-      { label: 'Home', href: '/' },
-      { label: 'Question Banks', href: '/question-banks' },
+      { label: 'Home', href: '/', folderId: null },
       { label: bank.name },
     ]}
     persistentStorage={persistentStorage}
@@ -1912,6 +1915,7 @@ function QuestionBankPage({
               <Pencil aria-hidden="true" />
             </button>
           </div>
+          <FolderPath library={library} resource={{ kind: 'bank', id: bank.id }} name={bank.name} />
           <BankPageFacts
             bank={bank}
             picturesNeeded={pendingPictures.length}
@@ -1938,7 +1942,7 @@ function QuestionBankPage({
         filter={filter}
         onFilterChange={setFilter}
         onBankChange={setBank}
-        onBankGone={() => navigate('/question-banks')}
+        onBankGone={() => navigate('/')}
         examsService={workspaces}
       />
     </div>
@@ -2018,6 +2022,7 @@ function ExamEditor({
   examId,
   bankWorkspaces,
   workspaces,
+  library,
   exams,
   onHome,
   onOpenExam,
@@ -2031,6 +2036,7 @@ function ExamEditor({
   examId: string
   bankWorkspaces: QuestionBankWorkspaceService
   workspaces: ExamWorkspaceService
+  library?: LibraryService
   exams: readonly RecentExam[]
   onHome: () => void
   onOpenExam: (id: string) => void
@@ -2125,18 +2131,61 @@ function ExamEditor({
   const selectOnWorkingCopy = selection.select
   const [bankPercent, setBankPercent] = useState(33)
   const [bankRevision, setBankRevision] = useState(0)
+  // Whether the Question Bank Pane and the Exam Outline are open, remembered
+  // per Exam beside the bank tabs. Not authoring: never dirties or undoes.
+  const [panes, setPanes] = useState({ bankOpen: true, outlineOpen: false, loaded: false })
   useEffect(() => {
     let current = true
     void bankWorkspaces.workspace({ examId }).then((workspace) => {
-      if (current) setBankPercent(workspace.pane.bankPercent)
+      if (!current) return
+      setBankPercent(workspace.pane.bankPercent)
+      setPanes({ bankOpen: workspace.pane.bankOpen, outlineOpen: workspace.pane.outlineOpen, loaded: true })
     })
     return () => { current = false }
   }, [bankWorkspaces, examId])
+  // Too narrow for columns beside the pages, each pane is a sheet over them
+  // instead: one at a time, closed by a click outside it, and not remembered
+  // — a sheet left open would cover the Exam the next time it is opened.
+  const narrow = useNarrowLayout()
+  const [narrowSheet, setNarrowSheet] = useState<'bank' | 'outline' | null>(null)
+  const bankOpen = narrow ? narrowSheet === 'bank' : panes.bankOpen
+  const outlineOpen = narrow ? narrowSheet === 'outline' : panes.outlineOpen
+  const setPaneOpen = (pane: 'bank' | 'outline', open: boolean) => {
+    if (narrow) {
+      setNarrowSheet(open ? pane : (current) => current === pane ? null : current)
+      return
+    }
+    const change = pane === 'bank' ? { bankOpen: open } : { outlineOpen: open }
+    setPanes((current) => ({ ...current, ...change }))
+    void bankWorkspaces.updatePanes({ examId }, change)
+  }
+  useEffect(() => {
+    if (!narrow || !narrowSheet) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      // Inside the sheet, on its toggle, or in something it opened over itself
+      // — a menu, a dialog — is not outside it.
+      if (target?.closest('[data-pane-sheet], [data-pane-toggle], .context-menu, .dialog-backdrop, .bank-filter-list')) return
+      setNarrowSheet(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [narrow, narrowSheet])
   // A question an authoring action has just put on the Working Copy, waiting to be
   // revealed. `ExamPage` clears it once repagination has actually put it on a
   // page, which — for a change of content — is not the same moment.
   const [revealQuestionId, setRevealQuestionId] = useState<string | null>(null)
-  const clearReveal = useCallback(() => setRevealQuestionId(null), [])
+  // A Question gone to from the Exam Outline is brought to the top of the
+  // lane; one an action has just added, only as far as it takes to show it.
+  const [revealAlignment, setRevealAlignment] = useState<ScrollLogicalPosition>('nearest')
+  const clearReveal = useCallback(() => {
+    setRevealQuestionId(null)
+    setRevealAlignment('nearest')
+  }, [])
+  const goToQuestion = useCallback((questionId: string) => {
+    setRevealAlignment('start')
+    setRevealQuestionId(questionId)
+  }, [])
   // The outcome of the latest Vary command stays visible and is announced to
   // assistive technology. It is transient UI feedback, not authoring state.
   const [varySummary, setVarySummary] = useState<string | null>(null)
@@ -2244,6 +2293,13 @@ function ExamEditor({
   // itself refuses a cross-section or duplicating drop, so the geometry above
   // only ever has to decide *where*, never *whether*.
   const drag = useWorkspaceDrag((source, intent) => {
+    if (intent.kind === 'remove') {
+      // Carried off the Exam onto the Question Bank Pane: Removed, where it is
+      // listed again. One store operation, so one Undo brings it all back.
+      store.removeFromWorkingCopy(source.questionIds)
+      selection.clear()
+      return
+    }
     const target: SectionTarget =
       intent.kind === 'insert'
         ? { kind: 'question', questionId: intent.targetQuestionId, placement: intent.placement }
@@ -2526,125 +2582,187 @@ function ExamEditor({
     }
   }
 
+  // The Question Bank Pane's two controls, each in the top-right corner of
+  // its own bar: the pane's X, which stays an X as the pane slides away with
+  // it, and — once it is closed — the block at the Exam bar's end, its whole
+  // height and width one button, behind a rule as the pane is behind its
+  // divider.
+  const bankClose = (
+    <button
+      type="button"
+      className="toolbar-icon-button pane-toggle"
+      aria-label="Hide Question Bank"
+      title="Hide Question Bank"
+      aria-expanded={bankOpen}
+      aria-controls="question-bank-pane"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('bank', false)}
+    >
+      <X aria-hidden="true" />
+    </button>
+  )
+  const bankShow = (
+    <button
+      type="button"
+      className="bank-show-slot"
+      aria-label="Show Question Bank"
+      title="Show Question Bank"
+      aria-expanded={bankOpen}
+      aria-controls="question-bank-pane"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('bank', true)}
+    >
+      <Database aria-hidden="true" />
+    </button>
+  )
+  // The Exam Outline's toggle, at a fixed place at the left of the Exam's
+  // column. The outline slides out below it, and it stays where it is as a
+  // back arrow, so opening and closing are the same click in the same place.
+  const outlineToggle = (
+    <button
+      type="button"
+      className="exam-outline-toggle"
+      aria-label={outlineOpen ? 'Hide Exam Outline' : 'Show Exam Outline'}
+      title={outlineOpen ? 'Hide outline' : 'Show outline'}
+      aria-expanded={outlineOpen}
+      aria-controls="exam-outline"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('outline', !outlineOpen)}
+    >
+      {/* Open, the whole "← Outline" line is the control that closes it. */}
+      {outlineOpen
+        ? <><ArrowLeft aria-hidden="true" /><span className="exam-outline-toggle-label" aria-hidden="true">Outline</span></>
+        : <List aria-hidden="true" />}
+    </button>
+  )
+  const removeDropActive = drag.source?.pane === 'exam-draft' && drag.intent?.kind === 'remove'
+
+  // This bar belongs to the Exam, and stops where the Question Bank Pane
+  // begins. The mark is the way home and the name sits beside it, where a
+  // document's name sits — the same name that is printed on the page's own
+  // title line, and the same field: typing in either is typing the Exam's name.
+  const documentBar = (
+        <header className="document-bar">
+          <div className="document-identity">
+            <button
+              type="button"
+              className="editor-home-mark"
+              aria-label="Test Parrot home"
+              title="Home"
+              onClick={onHome}
+            >
+              <img className="app-logo" src="/logo.png" alt="" width={36} height={36} />
+            </button>
+            <div className="document-title-stack">
+              <div className="document-title-row">
+                <input
+                  aria-label="Exam name"
+                  className="document-title"
+                  value={state.workingCopy.title}
+                  disabled={isHistoricalBrowsing}
+                  placeholder="Untitled Exam"
+                  onChange={(event) => store.setTitle(event.target.value)}
+                />
+                {library && <FolderPath library={library} resource={{ kind: 'exam', id: examId }} name={state.workingCopy.title} documentLoad />}
+              </div>
+              <nav className="document-menus" aria-label="Exam menus">
+                {DOCUMENT_MENUS.map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className="document-menu-button"
+                    aria-haspopup="menu"
+                    aria-expanded={documentMenu?.kind === kind}
+                    onClick={(event) => {
+                      const bounds = event.currentTarget.getBoundingClientRect()
+                      setDocumentMenu((current) => current?.kind === kind
+                        ? null
+                        : { kind, point: { x: bounds.left, y: bounds.bottom + 4 } })
+                    }}
+                  >
+                    {DOCUMENT_MENU_LABELS[kind]}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </div>
+          <div className="header-actions">
+            <div className="document-edit-actions" aria-label="Editing actions">
+              <button
+                type="button"
+                className="toolbar-icon-button"
+                aria-label="Undo"
+                title="Undo (Ctrl/Cmd+Z)"
+                disabled={isHistoricalBrowsing || !store.canUndo()}
+                onClick={() => {
+                  if (!isHistoricalBrowsing) store.undo()
+                }}
+              >
+                <Undo2 />
+              </button>
+              <button
+                type="button"
+                className="toolbar-icon-button"
+                aria-label="Redo"
+                title="Redo (Ctrl/Cmd+Shift+Z)"
+                disabled={isHistoricalBrowsing || !store.canRedo()}
+                onClick={() => {
+                  if (!isHistoricalBrowsing) store.redo()
+                }}
+              >
+                <Redo2 />
+              </button>
+            </div>
+            {/* A mark, not a sentence. It changes on every keystroke, and four
+                different sentences in a flex row that wraps means the whole bar
+                reflowing under the teacher's hands while they type. The text is
+                still there — in the tooltip, and announced to a screen reader —
+                but the slot it lives in never changes size. */}
+            <WorkingCopyStatus dirty={state.dirty} backupStatus={backupStatus} />
+            <button
+              ref={historyButton}
+              type="button"
+              className="toolbar-icon-button"
+              aria-label="Export History"
+              title="Export History"
+              aria-expanded={historyOpen}
+              aria-controls="export-history"
+              onClick={() => setHistoryOpen((open) => !open)}
+            >
+              <History aria-hidden="true" />
+            </button>
+            {/* Save and Export stay available while a change is still being
+                backed up — both wait for it — so they never flicker off and on
+                with every edit; only a failed backup holds them. */}
+            <button
+              type="button"
+              className="primary-button"
+              aria-label="Save"
+              disabled={isHistoricalBrowsing || !state.dirty || backupStatus === 'failed'}
+              onClick={() => void store.save()}
+            >
+              Save
+            </button>
+            <button
+              ref={exportButton}
+              type="button"
+              className="secondary-button"
+              disabled={backupStatus === 'failed' || isHistoricalBrowsing}
+              aria-haspopup="dialog"
+              aria-expanded={exportDialog !== null}
+              onClick={() => openExport()}
+            >
+              Export
+            </button>
+            {!bankOpen && bankShow}
+          </div>
+        </header>
+  )
+
   return (
     <>
       {launchError && <p className="home-error editor-launch-error" role="alert">{launchError}</p>}
-      {/* This bar belongs to the Exam. The mark is the way home and the name
-          sits beside it, where a document's name sits — the same name that is
-          printed on the page's own title line, and the same field: typing in
-          either is typing the Exam's name. */}
       <div className="editor-shell">
-      <header className="document-bar">
-        <div className="document-identity">
-          <button
-            type="button"
-            className="editor-home-mark"
-            aria-label="Test Parrot home"
-            title="Home"
-            onClick={onHome}
-          >
-            <img className="app-logo" src="/logo.png" alt="" width={36} height={36} />
-          </button>
-          <div className="document-title-stack">
-            <input
-              aria-label="Exam name"
-              className="document-title"
-              value={state.workingCopy.title}
-              disabled={isHistoricalBrowsing}
-              placeholder="Untitled Exam"
-              onChange={(event) => store.setTitle(event.target.value)}
-            />
-            <nav className="document-menus" aria-label="Exam menus">
-              {DOCUMENT_MENUS.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  className="document-menu-button"
-                  aria-haspopup="menu"
-                  aria-expanded={documentMenu?.kind === kind}
-                  onClick={(event) => {
-                    const bounds = event.currentTarget.getBoundingClientRect()
-                    setDocumentMenu((current) => current?.kind === kind
-                      ? null
-                      : { kind, point: { x: bounds.left, y: bounds.bottom + 4 } })
-                  }}
-                >
-                  {DOCUMENT_MENU_LABELS[kind]}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-        <div className="header-actions">
-          <div className="document-edit-actions" aria-label="Editing actions">
-            <button
-              type="button"
-              className="toolbar-icon-button"
-              aria-label="Undo"
-              title="Undo (Ctrl/Cmd+Z)"
-              disabled={isHistoricalBrowsing || !store.canUndo()}
-              onClick={() => {
-                if (!isHistoricalBrowsing) store.undo()
-              }}
-            >
-              <Undo2 />
-            </button>
-            <button
-              type="button"
-              className="toolbar-icon-button"
-              aria-label="Redo"
-              title="Redo (Ctrl/Cmd+Shift+Z)"
-              disabled={isHistoricalBrowsing || !store.canRedo()}
-              onClick={() => {
-                if (!isHistoricalBrowsing) store.redo()
-              }}
-            >
-              <Redo2 />
-            </button>
-          </div>
-          {/* A mark, not a sentence. It changes on every keystroke, and four
-              different sentences in a flex row that wraps means the whole bar
-              reflowing under the teacher's hands while they type. The text is
-              still there — in the tooltip, and announced to a screen reader —
-              but the slot it lives in never changes size. */}
-          <WorkingCopyStatus dirty={state.dirty} backupStatus={backupStatus} />
-          <button
-            ref={historyButton}
-            type="button"
-            className="toolbar-icon-button"
-            aria-label="Export History"
-            title="Export History"
-            aria-expanded={historyOpen}
-            aria-controls="export-history"
-            onClick={() => setHistoryOpen((open) => !open)}
-          >
-            <History aria-hidden="true" />
-          </button>
-          {/* Save and Export stay available while a change is still being
-              backed up — both wait for it — so they never flicker off and on
-              with every edit; only a failed backup holds them. */}
-          <button
-            type="button"
-            className="primary-button"
-            aria-label="Save"
-            disabled={isHistoricalBrowsing || !state.dirty || backupStatus === 'failed'}
-            onClick={() => void store.save()}
-          >
-            Save
-          </button>
-          <button
-            ref={exportButton}
-            type="button"
-            className="secondary-button"
-            disabled={backupStatus === 'failed' || isHistoricalBrowsing}
-            aria-haspopup="dialog"
-            aria-expanded={exportDialog !== null}
-            onClick={() => openExport()}
-          >
-            Export
-          </button>
-        </div>
-      </header>
 
       {documentMenu && <ContextMenu
         point={documentMenu.point}
@@ -2873,22 +2991,35 @@ function ExamEditor({
         />
       )}
 
-      {/* The split authoring workspace: the Question Bank beside the rendered
-          Working Copy. The bank opens as the narrower pane — it is picked from
-          rather than read — and the divider moves. */}
+      {/* The split authoring workspace: the Question Bank Pane beside the
+          Exam's column. The bank opens as the narrower pane — it is picked from
+          rather than read — the divider moves, and the pane closes. */}
       <WorkspaceSplit
+        bankOpen={bankOpen}
+        animate={panes.loaded}
         initialBankPercent={bankPercent}
         onBankPercentChange={(percent) => {
           setBankPercent(percent)
           void bankWorkspaces.updatePane({ examId }, percent)
         }}
         bank={
-          <div
+          <aside
+            id="question-bank-pane"
             className="question-bank-authoring"
-            inert={isHistoricalBrowsing || undefined}
-            aria-hidden={isHistoricalBrowsing || undefined}
+            aria-label="Question Bank Pane"
+            data-pane-sheet=""
+            // Released over the open pane, a question carried off the Exam is
+            // Removed from it. A closed pane is no target at all.
+            data-remove-drop-zone={bankOpen && !isHistoricalBrowsing ? '' : undefined}
+            data-remove-over={removeDropActive ? 'true' : undefined}
+            inert={isHistoricalBrowsing || !bankOpen || undefined}
+            aria-hidden={isHistoricalBrowsing || !bankOpen || undefined}
           >
+          {removeDropActive && <div className="bank-remove-drop" aria-hidden="true">
+            <span>Drop to remove from exam</span>
+          </div>}
           <QuestionBankTabsPane
+            tabsTrailing={bankClose}
             context={{ examId }}
             service={bankWorkspaces}
             onImportBank={onImportBank}
@@ -2896,13 +3027,10 @@ function ExamEditor({
             onQuestionsChange={store.syncCanonicalQuestions}
             onAddToExam={addToWorkingCopy}
             onAddManyToExam={addManyToWorkingCopy}
-            onRemoveFromExam={(questionId) => {
-              store.removeFromWorkingCopy([questionId])
-              if (selection.isSelected(questionId)) selection.toggle(questionId)
-            }}
             workspaceDrag={drag}
             resourceRevision={bankRevision + bankLibraryRevision}
             examsService={workspaces}
+            library={library}
             beforeCanonicalQuestionCommit={() => store.whenSettled()}
             onCanonicalQuestionCommitted={(question) => store.syncCanonicalQuestions([question])}
             onQuestionDeleted={(questionId) => {
@@ -2912,10 +3040,41 @@ function ExamEditor({
               setBankRevision((revision) => revision + 1)
             }}
           />
-          </div>
+          </aside>
         }
-        workingCopy={
+        exam={
           <>
+          {documentBar}
+          <div className="exam-body" data-outline-open={outlineOpen ? 'true' : undefined}>
+          {/* One scroll area for the outline and the pages, as a document
+              outline has it: scrolling down, the outline stays where it is;
+              scrolling sideways, it goes with the pages. */}
+          <div className="editor-output">
+          <div className="exam-scroll-row">
+          <div className="exam-outline-rail" data-open={outlineOpen ? 'true' : 'false'}>
+          {outlineToggle}
+          <div
+            id="exam-outline"
+            className="exam-outline-pane"
+            data-pane-sheet=""
+            data-open={outlineOpen ? 'true' : 'false'}
+            inert={isHistoricalBrowsing || !outlineOpen || undefined}
+            aria-hidden={!outlineOpen || undefined}
+          >
+            {outlineOpen && <ExamOutline
+              exam={exam}
+              arrangement={arrangement}
+              drag={drag}
+              selection={selection}
+              onReveal={goToQuestion}
+              onRemove={(questionIds) => {
+                store.removeFromWorkingCopy(questionIds)
+                selection.clear()
+              }}
+            />}
+          </div>
+          </div>
+          <div className="exam-document-column">
             <div
               className="draft-document"
               // The drawer is itself historical browsing, so the exposed part
@@ -2932,6 +3091,7 @@ function ExamEditor({
             drag={drag}
             revealQuestionId={revealQuestionId}
             onRevealed={clearReveal}
+            revealAlignment={revealAlignment}
             onTitleChange={(title) => store.setTitle(title)}
             onSectionHeadingChange={(sectionId, change) => store.setSectionHeading(sectionId, change)}
             onMoveSection={(sectionId, direction) => store.moveSection(sectionId, direction)}
@@ -2998,6 +3158,10 @@ function ExamEditor({
               />
             </div>
             <Footer />
+          </div>
+          </div>
+          </div>
+          </div>
           </>
         }
       />
@@ -3100,6 +3264,25 @@ function ExamEditor({
   )
 }
 
+/** Where whatever the next import makes should land: the Folder the New menu
+ *  was opened in, kept across the convert page and its waiting import. */
+const IMPORT_FOLDER_KEY = 'test-parrot-import-folder'
+function rememberImportFolder(folderId: string | null) {
+  try {
+    if (folderId) window.sessionStorage.setItem(IMPORT_FOLDER_KEY, folderId)
+    else window.sessionStorage.removeItem(IMPORT_FOLDER_KEY)
+  } catch { /* the import lands at the top level */ }
+}
+function takeImportFolder(): string | null | undefined {
+  try {
+    const folderId = window.sessionStorage.getItem(IMPORT_FOLDER_KEY)
+    window.sessionStorage.removeItem(IMPORT_FOLDER_KEY)
+    return folderId ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * The site's three pages. The editor is the app; About and Privacy are the
  * ordinary pages a public tool is expected to have, reached from the footer.
@@ -3109,6 +3292,7 @@ export default function App({
   bank,
   workspaces,
   bankWorkspaces,
+  library: givenLibrary,
   initialExams,
   initialBankCollection,
   persistentStorage,
@@ -3120,25 +3304,28 @@ export default function App({
   bank: QuestionBankResource | null
   workspaces: ExamWorkspaceService
   bankWorkspaces: QuestionBankWorkspaceService
+  library?: LibraryService
   initialExams: readonly RecentExam[]
-  initialBankCollection: readonly QuestionBankCollectionItem[]
+  initialBankCollection: readonly QuestionBankSummary[]
   persistentStorage: PersistentStorageStatus
   initialEditorId: string | null
   initialError: string | null
 }) {
   const route = useRoute()
   const search = useLocationSearch()
+  const [library] = useState(() => givenLibrary ?? createLibraryService({ workspaces, bankWorkspaces }))
   const [exams, setExams] = useState(initialExams)
   /** The bank the Question Bank page is showing and the address it was read
    *  for — at start by `main.tsx`, and after that on every arrival, so a bank
    *  edited elsewhere since is never shown as it was. */
   const [pageBank, setPageBank] = useState(() => bank ? { bank, search: window.location.search } : null)
-  const [bankCollection, setBankCollection] = useState(initialBankCollection)
+  const [bankCollection] = useState(initialBankCollection)
+  const [snapshot, setSnapshot] = useState<LibrarySnapshot | null>(null)
   const [storageStatus, setStorageStatus] = useState(persistentStorage)
   const [editorStore, setEditorStore] = useState(store)
   const [editorId, setEditorId] = useState(initialEditorId)
-  const [deletingBank, setDeletingBank] = useState<{ bank: QuestionBankCollectionItem; impact: QuestionDeletionImpact[] } | null>(null)
-  const [deletingExam, setDeletingExam] = useState<ExamDeletionSummary | null>(null)
+  const [trashing, setTrashing] = useState<{ ref: EntryRef; name: string; warning: DeletionWarning } | null>(null)
+  const [namingFolderIn, setNamingFolderIn] = useState<{ parentId: string | null } | null>(null)
   const [exportingBank, setExportingBank] = useState<QuestionBankResource | null>(null)
   const [inspectingBankFile, setInspectingBankFile] = useState(false)
   const [droppedBankFile, setDroppedBankFile] = useState<File | null>(null)
@@ -3163,6 +3350,10 @@ export default function App({
     navigate('/imports', { replace: true })
     openImport()
   }, [route, openImport])
+  // The Exams and Question Banks lists became Home (ADR-0051).
+  useEffect(() => {
+    if (route === '/exams' || route === '/question-banks') replaceRoute('/')
+  }, [route])
   /** A file dropped while the Import dialog is open belongs to it — an
    *  assistant's corrected file replaces the one under review — rather than
    *  starting the dialog over. */
@@ -3193,6 +3384,20 @@ export default function App({
       ...options,
       bankAnswerWidth: domMeasure.bankAnswerWidth,
     })
+    // What an import makes lands in the Folder the teacher is in (ADR-0051):
+    // the one New was opened in, the one on screen, or the open Exam's.
+    const remembered = takeImportFolder()
+    const folderId = remembered !== undefined
+      ? remembered
+      : route === '/editor' && editorId
+        ? (await workspaces.summary(editorId))?.parentId ?? null
+        : folderOfRoute(route)
+    if (folderId) {
+      await library.move([
+        ...result.createdBankIds.map((id) => ({ kind: 'bank' as const, id })),
+        ...result.createdExamIds.map((id) => ({ kind: 'exam' as const, id })),
+      ], folderId)
+    }
     // One Exam is what a converted test is: it opens in the editor with the
     // banks it was built from as its tabs, from onboarding as from anywhere.
     const [onlyExam, ...otherExams] = result.createdExamIds
@@ -3201,7 +3406,7 @@ export default function App({
       return
     }
     if (onlyExam) {
-      window.location.assign('/exams')
+      window.location.assign(folderHref(folderId))
       return
     }
     const bankIds = [...result.createdBankIds, ...result.updatedBankIds]
@@ -3220,7 +3425,7 @@ export default function App({
     // From onboarding, banks were imported in order to write an Exam from
     // them: a fresh Exam opens with them as its pane's tabs.
     if (route.startsWith('/get-started')) {
-      const exam = await workspaces.create()
+      const exam = await workspaces.create(undefined, folderId)
       for (const bankId of bankIds) await bankWorkspaces.openTab({ examId: exam.id }, bankId)
       window.location.assign(`/editor?exam=${exam.id}`)
       return
@@ -3234,19 +3439,13 @@ export default function App({
         : `Imported ${questions} into ${first?.name ?? 'the Question Bank'}.`,
     )
     window.location.assign(`/question-bank?id=${firstBankId}`)
-  }, [bankWorkspaces, closeImport, editorId, route, workspaces])
+  }, [bankWorkspaces, closeImport, editorId, library, route, workspaces])
   const picturesNeededIn = useCallback(async (bankIds: readonly string[]) => {
     const banks = await Promise.all(bankIds.map((id) => bankWorkspaces.read(id)))
     return banks.reduce((total, bank) => total + (bank ? pendingImagesOfQuestions(bank.questions).length : 0), 0)
   }, [bankWorkspaces])
-  const requestBankDeletion = useCallback((bank: QuestionBankCollectionItem) => {
-    void bankWorkspaces.read(bank.id).then(async (resource) => {
-      const impact = await workspaces.deletionImpact(resource?.questions.map(({ id }) => id) ?? [])
-      setDeletingBank({ bank, impact })
-    })
-  }, [bankWorkspaces, workspaces])
-  const requestBankExport = useCallback((bank: QuestionBankCollectionItem) => {
-    void bankWorkspaces.read(bank.id).then((resource) => {
+  const requestBankExport = useCallback((id: string) => {
+    void bankWorkspaces.read(id).then((resource) => {
       if (resource) setExportingBank(resource)
     })
   }, [bankWorkspaces])
@@ -3254,46 +3453,26 @@ export default function App({
     bank={exportingBank}
     onClose={() => setExportingBank(null)}
   />
-  const bankDeletionConfirmation = deletingBank && <BankDeletionConfirmation
-    bank={deletingBank.bank}
-    impact={deletingBank.impact}
-    onCancel={() => setDeletingBank(null)}
+  // Deleting the Exam open in the editor, or the bank open on its page, sends
+  // it to Trash like deleting it anywhere else (ADR-0051), and leaves for the
+  // Folder it was in.
+  const requestTrash = useCallback((ref: EntryRef, name: string) => {
+    void library.deletionWarning([ref]).then((warning) => setTrashing({ ref, name, warning }))
+  }, [library])
+  const trashDialog = trashing && <TrashDialog
+    name={trashing.name}
+    warning={trashing.warning}
+    onCancel={() => setTrashing(null)}
     onConfirm={async () => {
-      const bank = await bankWorkspaces.read(deletingBank.bank.id)
-      if (!bank) throw new Error('That Question Bank is unavailable on this device.')
-      await bankWorkspaces.permanentlyDeleteBank(bank.id, (ids) => workspaces.forceDeleteQuestions(ids))
-      setBankCollection((current) => current.filter(({ id }) => id !== bank.id))
-      setExams(await workspaces.recent())
-      setDeletingBank(null)
-    }}
-  />
-  // The editor names its Exam by what its title field says now, which may be
-  // ahead of the last backup.
-  const requestExamDeletion = useCallback((id: string, title?: string) => {
-    void workspaces.deletionSummary(id).then((summary) => {
-      if (summary) setDeletingExam(title === undefined ? summary : { ...summary, title })
-    })
-  }, [workspaces])
-  const examDeletionConfirmation = deletingExam && <ExamDeletionConfirmation
-    summary={deletingExam}
-    onCancel={() => setDeletingExam(null)}
-    onConfirm={async () => {
-      const { examId } = deletingExam
-      const open = examId === editorId
-      // A backup still on its way must land before the database goes, not
-      // after, where it would find the Exam gone.
+      const { ref } = trashing
+      const open = ref.kind === 'exam' && ref.id === editorId
+      // A backup still on its way must land before the Exam goes.
       if (open && editorStore) await editorStore.whenSettled().catch(() => undefined)
-      await workspaces.deleteExam(examId)
-      // An Exam deleted from its own editor leaves it for Home.
-      if (open) {
-        window.location.assign('/')
-        return
-      }
-      setDeletingExam(null)
-      const [recent, recentBanks] = await Promise.all([workspaces.recent(), bankWorkspaces.recent()])
-      setExams(recent)
-      // Its banks are used in one Exam fewer.
-      setBankCollection(await questionBankCollection(recentBanks, bankWorkspaces, workspaces))
+      const parentId = ref.kind === 'exam'
+        ? (await workspaces.summary(ref.id))?.parentId ?? null
+        : (await bankWorkspaces.recent()).find((candidate) => candidate.id === ref.id)?.parentId ?? null
+      await library.trash([ref])
+      window.location.assign(folderHref(parentId))
     }}
   />
   const saveAs = useCallback(async () => {
@@ -3319,43 +3498,81 @@ export default function App({
     }))
     setEditorId(targetId)
   }, [editorStore, workspaces])
-  // Home and both collections read the account afresh each time they are
-  // shown: moving between them and a Question Bank page loads no document, so
-  // what they were handed at start is out of date once a bank is edited. Only
-  // Home sweeps away untouched placeholders, as it always has; reading is all
-  // the collections do.
+  /** Make a copy, from Home: Save As, without opening the copy. The copy
+   *  takes the Working Copy, lands beside the original, and the original goes
+   *  back to its last saved state. */
+  const copyExam = useCallback(async (id: string) => {
+    const backend = workspaces.backendFor(id)
+    const source = await loadExamStore(backend, undefined, domMeasure.bankAnswerWidth)
+    await source.saveAs(async (snapshot) => { await workspaces.saveAs(id, snapshot, { activate: false }) })
+    await source.whenSettled().catch(() => undefined)
+    await backend.close()
+  }, [workspaces])
+  const libraryView = libraryViewOf(route, search)
+  const onLibrary = libraryView !== null
+  const refreshLibrary = useCallback(async () => {
+    const [next, currentStorageStatus] = await Promise.all([library.snapshot(), persistentStorageStatus()])
+    setSnapshot(next)
+    setStorageStatus(currentStorageStatus)
+    setExams(next.entries.flatMap((entry) => (entry.kind === 'exam' && !library.inTrash(entry, next.folders) ? [entry.exam] : [])))
+  }, [library])
+  // The Library reads the account afresh each time a page of it is shown:
+  // moving between it and a Question Bank page loads no document, so what it
+  // had is out of date once a bank is edited. It also sweeps away untouched
+  // Untitled placeholders, without passing them through Trash.
   useEffect(() => {
-    if (route !== '/' && route !== '/exams' && route !== '/question-banks') return
+    if (!onLibrary) return
     let current = true
     void (async () => {
-      if (route === '/') {
-        await workspaces.cleanupPristine({ includeActive: true })
-        await bankWorkspaces.cleanupPristine({ includeActive: true })
-      }
-      const [recent, recentBanks] = await Promise.all([
-        workspaces.recent(),
-        bankWorkspaces.recent(),
-      ])
-      const [collection, currentStorageStatus] = await Promise.all([
-        questionBankCollection(recentBanks, bankWorkspaces, workspaces),
-        persistentStorageStatus(),
-      ])
+      await workspaces.cleanupPristine({ includeActive: true })
+      await bankWorkspaces.cleanupPristine({ includeActive: true })
+      const [next, currentStorageStatus] = await Promise.all([library.snapshot(), persistentStorageStatus()])
       if (current) {
-        setExams(recent)
-        setBankCollection(collection)
+        setSnapshot(next)
         setStorageStatus(currentStorageStatus)
       }
     })()
     return () => { current = false }
-  }, [route, workspaces, bankWorkspaces])
+  }, [onLibrary, route, workspaces, bankWorkspaces, library])
   // The editor is entered and left by loading a document, as `main.tsx`
   // expects: it reads the Exam from storage afresh, and the browser's own
   // leave-page guard stands between the teacher and an unsaved Working Copy.
   // The Question Bank Pop-over closes with that load (ADR-0030).
   const openExam = (id: string) => window.location.assign(`/editor?exam=${id}`)
   const openBank = useCallback((id: string) => navigate(`/question-bank?id=${id}`), [])
-  const newExam = () => { void workspaces.create().then((exam) => openExam(exam.id)) }
-  const newBank = () => { void bankWorkspaces.create().then((bank) => openBank(bank.id)) }
+  const newExam = (folderId: string | null = null) => { void workspaces.create(undefined, folderId).then((exam) => openExam(exam.id)) }
+  const newBank = (folderId: string | null = null) => { void bankWorkspaces.create(folderId).then((bank) => openBank(bank.id)) }
+  const libraryActions: LibraryActions = {
+    onNew: (kind: NewKind, folderId: string | null) => {
+      if (kind === 'folder') setNamingFolderIn({ parentId: folderId })
+      else if (kind === 'exam') newExam(folderId)
+      else if (kind === 'bank') newBank(folderId)
+      else if (kind === 'import') {
+        rememberImportFolder(folderId)
+        openImport()
+      } else {
+        rememberImportFolder(folderId)
+        navigate('/get-started/convert')
+      }
+    },
+    onDropInto: (folderId, event) => {
+      const refs = draggedRefs(event)
+      if (refs.length > 0) void library.move(refs, folderId).then(refreshLibrary)
+    },
+  }
+  const newFolderDialog = namingFolderIn && <NameDialog
+    title="New folder"
+    label="Folder name"
+    initial={UNTITLED_FOLDER}
+    confirmLabel="Create"
+    onCancel={() => setNamingFolderIn(null)}
+    onConfirm={async (name) => {
+      await library.createFolder(name, namingFolderIn.parentId)
+      setNamingFolderIn(null)
+      if (onLibrary) await refreshLibrary()
+      else navigate(folderHref(namingFolderIn.parentId))
+    }}
+  />
   const onBankPage = route === '/question-bank'
   const pageBankReady = onBankPage && pageBank?.search === search
   useEffect(() => {
@@ -3373,7 +3590,7 @@ export default function App({
         return
       }
       setHomeError('That Question Bank is unavailable on this device.')
-      replaceRoute('/question-banks')
+      replaceRoute('/')
     })
     return () => { current = false }
   }, [bankWorkspaces, onBankPage, pageBankReady, search])
@@ -3398,114 +3615,97 @@ export default function App({
   const globalChrome = <>
     <BankFileDropTarget onFile={dropping(openImport)} />
     {importDialog}
+    {newFolderDialog}
   </>
-  if (route === '/imports' || route === '/imports/new') return <>{globalChrome}<ImportsPage
-    onImport={() => openImport()}
-    persistentStorage={storageStatus}
-    revision={importRevision}
-    picturesNeededIn={picturesNeededIn}
-  /></>
-  if (route === '/import') {
-    const waitingId = new URLSearchParams(window.location.search).get('id') ?? ''
-    // A file dropped on a waiting import's page is the AI's answer to it.
-    return <>
-      <BankFileDropTarget onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
+  const page = (() => {
+    if (route === '/imports' || route === '/imports/new') return <>{globalChrome}<ImportsPage
+      onImport={() => openImport()}
+      persistentStorage={storageStatus}
+      revision={importRevision}
+      picturesNeededIn={picturesNeededIn}
+    /></>
+    if (route === '/import') {
+      const waitingId = new URLSearchParams(window.location.search).get('id') ?? ''
+      // A file dropped on a waiting import's page is the AI's answer to it.
+      return <>
+        <BankFileDropTarget onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
+        {importDialog}
+        <WaitingImportPage
+          id={waitingId}
+          persistentStorage={storageStatus}
+          revision={importRevision}
+          dropped={convertDrop}
+          onReturnedFile={(file) => openImport(file, null, waitingId)}
+        />
+      </>
+    }
+    if (route === '/about') return <>{globalChrome}<AboutPage persistentStorage={storageStatus} /></>
+    if (route === '/privacy') return <>{globalChrome}<PrivacyPage persistentStorage={storageStatus} /></>
+    if (route === '/settings') return <>{globalChrome}<SettingsPage persistentStorage={storageStatus} /></>
+    // A device that has never been here gets the front door instead of empty
+    // shelves; the same page stays reachable at /welcome afterwards.
+    const firstVisit = exams.length === 0 && bankCollection.length === 0 && !hasBeenWelcomed()
+    if (route === '/welcome' || (route === '/' && firstVisit)) return <>{globalChrome}<LandingPage returning={!firstVisit} /></>
+    if (route === '/get-started') return <>{globalChrome}<OnboardingPage onNewBank={() => newBank()} onNewExam={() => newExam()} /></>
+    // Its last step is "drop the file anywhere", which the page-wide drop
+    // target in the global chrome already is.
+    // Converting starts from the test itself, so on the convert page a drop is
+    // the page's to read: only a Test Parrot file goes straight to the import.
+    if (route === '/get-started/convert') return <>
+      <BankFileDropTarget tests onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
       {importDialog}
-      <WaitingImportPage
-        id={waitingId}
-        persistentStorage={storageStatus}
-        revision={importRevision}
-        dropped={convertDrop}
-        onReturnedFile={(file) => openImport(file, null, waitingId)}
-      />
+      <ConvertPage dropped={convertDrop} onOpenImport={(file, waitingImportId) => openImport(file, null, waitingImportId)} />
     </>
-  }
-  if (route === '/about') return <>{globalChrome}<AboutPage persistentStorage={storageStatus} /></>
-  if (route === '/privacy') return <>{globalChrome}<PrivacyPage persistentStorage={storageStatus} /></>
-  if (route === '/settings') return <>{globalChrome}<SettingsPage persistentStorage={storageStatus} /></>
-  if (route === '/exams') return <>{globalChrome}<ResourceCollectionPage
-    kind="exams"
-    exams={exams}
-    banks={bankCollection}
-    persistentStorage={storageStatus}
-    onOpenExam={openExam}
-    onOpenBank={openBank}
-    onNewExam={newExam}
-    onDeleteExam={(exam) => requestExamDeletion(exam.id)}
-  />{bankDeletionConfirmation}{examDeletionConfirmation}</>
-  if (route === '/question-banks') return <>{globalChrome}<ResourceCollectionPage
-    kind="question-banks"
-    exams={exams}
-    banks={bankCollection}
-    persistentStorage={storageStatus}
-    onOpenExam={openExam}
-    onOpenBank={openBank}
-    onNewBank={newBank}
-    onExportBank={requestBankExport}
-    onDeleteBank={requestBankDeletion}
-    onImportBank={() => openImport()}
-  />{bankExportDialog}{bankDeletionConfirmation}</>
-  // A device that has never been here gets the front door instead of empty
-  // shelves; the same page stays reachable at /welcome afterwards.
-  const firstVisit = exams.length === 0 && bankCollection.length === 0 && !hasBeenWelcomed()
-  if (route === '/welcome' || (route === '/' && firstVisit)) return <>{globalChrome}<LandingPage returning={!firstVisit} /></>
-  if (route === '/get-started') return <>{globalChrome}<OnboardingPage onNewBank={newBank} onNewExam={newExam} /></>
-  // Its last step is "drop the file anywhere", which the page-wide drop
-  // target in the global chrome already is.
-  // Converting starts from the test itself, so on the convert page a drop is
-  // the page's to read: only a Test Parrot file goes straight to the import.
-  if (route === '/get-started/convert') return <>
-    <BankFileDropTarget tests onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
-    {importDialog}
-    <ConvertPage dropped={convertDrop} onOpenImport={(file, waitingImportId) => openImport(file, null, waitingImportId)} />
-  </>
-  if (route === '/') return <>{globalChrome}<HomePage
-    exams={exams}
-    banks={bankCollection}
-    error={homeError}
-    persistentStorage={storageStatus}
-    onNewExam={newExam}
-    onOpen={openExam}
-    onNewBank={newBank}
-    onOpenBank={openBank}
-    onExportBank={requestBankExport}
-    onDeleteBank={requestBankDeletion}
-    onDeleteExam={(exam) => requestExamDeletion(exam.id)}
-    onImport={() => openImport()}
-  />{bankExportDialog}{bankDeletionConfirmation}{examDeletionConfirmation}</>
-  if (route === '/question-bank') return pageBank && pageBankReady ? <>{globalChrome}<QuestionBankPage
-    key={pageBank.bank.id}
-    bank={pageBank.bank}
-    bankWorkspaces={bankWorkspaces}
-    workspaces={workspaces}
-    persistentStorage={storageStatus}
-    // What went wrong at start belongs to the bank the app started on.
-    launchError={pageBank.bank === bank ? initialError : null}
-    onImportInto={(bankId) => openImport(null, bankId)}
-  /></> : globalChrome
-  return editorStore && editorId ? <>{globalChrome}<ExamEditor
-    store={editorStore}
-    examId={editorId}
-    bankWorkspaces={bankWorkspaces}
-    workspaces={workspaces}
-    exams={exams}
-    launchError={initialError}
-    bankLibraryRevision={bankLibraryRevision}
-    onImportBank={(file) => openImport(file)}
-    onSaveAs={saveAs}
-    onDelete={() => requestExamDeletion(editorId, editorStore.getState().workingCopy.title)}
-    onOpenExam={(id) => {
-      void (async () => {
-        await bankWorkspaces.carryWorkspace({ examId: editorId }, { examId: id })
-        if (!await workspaces.open(id)) return
-        setEditorStore(await loadExamStore(workspaces.backendFor(id), undefined, domMeasure.bankAnswerWidth))
-        setEditorId(id)
-      })()
-    }}
-    onHome={() => {
-    void workspaces.activeId().then(async (id) => {
-      if (id) await workspaces.removePristine(id)
-      window.location.assign('/')
-    })
-  }} />{examDeletionConfirmation}</> : globalChrome
+    if (libraryView) return <>{globalChrome}<LibraryPage
+      view={libraryView}
+      snapshot={snapshot}
+      library={library}
+      persistentStorage={storageStatus}
+      error={homeError}
+      onChanged={refreshLibrary}
+      onOpenExam={openExam}
+      onOpenBank={openBank}
+      onExportBank={requestBankExport}
+      onCopyExam={copyExam}
+    />{bankExportDialog}</>
+    if (route === '/question-bank') return pageBank && pageBankReady ? <>{globalChrome}<QuestionBankPage
+      key={pageBank.bank.id}
+      bank={pageBank.bank}
+      bankWorkspaces={bankWorkspaces}
+      workspaces={workspaces}
+      library={library}
+      persistentStorage={storageStatus}
+      // What went wrong at start belongs to the bank the app started on.
+      launchError={pageBank.bank === bank ? initialError : null}
+      onImportInto={(bankId) => openImport(null, bankId)}
+    />{trashDialog}</> : globalChrome
+    return editorStore && editorId ? <>{globalChrome}<ExamEditor
+      store={editorStore}
+      examId={editorId}
+      bankWorkspaces={bankWorkspaces}
+      workspaces={workspaces}
+      library={library}
+      exams={exams}
+      launchError={initialError}
+      bankLibraryRevision={bankLibraryRevision}
+      onImportBank={(file) => openImport(file)}
+      onSaveAs={saveAs}
+      onDelete={() => requestTrash({ kind: 'exam', id: editorId }, editorStore.getState().workingCopy.title)}
+      onOpenExam={(id) => {
+        void (async () => {
+          await bankWorkspaces.carryWorkspace({ examId: editorId }, { examId: id })
+          if (!await workspaces.open(id)) return
+          setEditorStore(await loadExamStore(workspaces.backendFor(id), undefined, domMeasure.bankAnswerWidth))
+          setEditorId(id)
+        })()
+      }}
+      onHome={() => {
+      void workspaces.activeId().then(async (id) => {
+        if (id) await workspaces.removePristine(id)
+        window.location.assign('/')
+      })
+    }} />{trashDialog}</> : globalChrome
+  })()
+  return <LibraryActionsContext.Provider value={libraryActions}>{page}</LibraryActionsContext.Provider>
 }
+

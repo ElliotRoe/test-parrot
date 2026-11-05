@@ -1,4 +1,4 @@
-import type { LayoutPlan } from './export-plan'
+import type { LayoutPlan, QuestionItem } from './export-plan'
 import { keptPixels, pictureCropOf, pictureKey, type CropBox } from './picture-geometry'
 import type { ProseMirrorJSON } from './question-doc'
 
@@ -158,25 +158,43 @@ export function picturesOf(plans: readonly LayoutPlan[]): ExportPicture[] {
   for (const plan of plans) {
     for (const page of plan.pages) {
       for (const item of page.items) {
-        if (item.kind !== 'question') continue
-        for (const block of item.stem) visit(block)
-        for (const row of item.grid?.cells ?? []) {
-          for (const cell of row) if (cell) visit(cell.node)
-        }
-        // Each piece of a Part prints the stem blocks it carries, then its
-        // Subparts in order beneath it.
-        for (const part of item.parts ?? []) {
-          for (const shown of [part, ...part.subparts]) {
-            for (const block of shown.stem) visit(block)
-            for (const row of shown.grid?.cells ?? []) {
-              for (const cell of row) if (cell) visit(cell.node)
-            }
-          }
-        }
+        for (const block of printedBlocksOf(item)) visit(block)
       }
     }
   }
   return [...pictures.values()]
+}
+
+type PageItem = LayoutPlan['pages'][number]['items'][number]
+
+/** Every block a page item prints that can hold a picture, in print order: a
+ *  question's stem and answers, then each piece of a Part — the stem blocks it
+ *  carries, then its Subparts beneath; an Answer Key entry's Suggested Answer,
+ *  then its Part lines' own. */
+function printedBlocksOf(item: PageItem): ProseMirrorJSON[] {
+  if (item.kind === 'answer-key-entry') {
+    return [
+      ...(item.suggestedAnswer ?? []),
+      ...(item.parts ?? []).flatMap((line) => line.suggestedAnswer ?? []),
+    ]
+  }
+  if (item.kind !== 'question') return []
+  type Piece = Pick<QuestionItem, 'stem' | 'grid'>
+  const blocksOfPiece = (piece: Piece): ProseMirrorJSON[] => [
+    ...piece.stem,
+    ...(piece.grid?.cells ?? []).flat().flatMap((cell) => (cell ? [cell.node] : [])),
+  ]
+  return [
+    ...blocksOfPiece(item),
+    ...(item.parts ?? []).flatMap((part) => [part, ...part.subparts].flatMap(blocksOfPiece)),
+  ]
+}
+
+/** The question number a page item prints under, if any. */
+function numberOf(item: PageItem): number | null {
+  if (item.kind === 'question') return item.question.number
+  if (item.kind === 'answer-key-entry') return item.number
+  return null
 }
 
 /** Every Media Asset source the plans refer to, in first-appearance order. */
@@ -223,20 +241,9 @@ export function questionNumberForMedia(
   for (const plan of plans) {
     for (const page of plan.pages) {
       for (const item of page.items) {
-        if (
-          item.kind === 'question'
-          && (
-            item.stem.some((node) => nodeContainsSource(node, source))
-            || (item.grid?.cells.flat().some(
-              (cell) => cell && nodeContainsSource(cell.node, source),
-            ) ?? false)
-            || (item.parts ?? []).flatMap((part) => [part, ...part.subparts]).some((part) =>
-              part.stem.some((node) => nodeContainsSource(node, source))
-              || (part.grid?.cells.flat().some(
-                (cell) => cell && nodeContainsSource(cell.node, source),
-              ) ?? false))
-          )
-        ) return item.question.number
+        if (printedBlocksOf(item).some((node) => nodeContainsSource(node, source))) {
+          return numberOf(item)
+        }
       }
     }
   }

@@ -3,6 +3,8 @@ import {
   MEDIA_ASSET_STORE,
   STORAGE_NAME,
   STORAGE_VERSION,
+  releasedOnVersionChange,
+  upgradeRegistry,
 } from './storage-schema'
 import { pendingImageOf, type ProseMirrorJSON } from './question-doc'
 
@@ -36,12 +38,8 @@ async function openMediaDatabase(): Promise<IDBDatabase> {
     // Media is global: a canonical Question can be used by several Exams and
     // immutable Export Records must survive deletion of their current source.
     const request = indexedDB.open(STORAGE_NAME, STORAGE_VERSION)
-    request.onupgradeneeded = () => {
-      if (!request.result.objectStoreNames.contains(MEDIA_ASSET_STORE)) {
-        request.result.createObjectStore(MEDIA_ASSET_STORE, { keyPath: 'hash' })
-      }
-    }
-    request.onsuccess = () => resolve(request.result)
+    request.onupgradeneeded = (event) => upgradeRegistry(request.result, request.transaction, event.oldVersion)
+    request.onsuccess = () => resolve(releasedOnVersionChange(request.result))
     request.onerror = () => reject(request.error ?? new Error('Could not open Media Store.'))
     request.onblocked = () => reject(new Error('Could not open Media Store.'))
   })
@@ -189,6 +187,7 @@ export async function collectUnusedMediaAssets(): Promise<string[]> {
     if (!name?.startsWith(STORAGE_NAME)) continue
     const database = await new Promise<IDBDatabase>((resolve, reject) => {
       const request = indexedDB.open(name, STORAGE_VERSION)
+      if (name === STORAGE_NAME) request.onupgradeneeded = (event) => upgradeRegistry(request.result, request.transaction, event.oldVersion)
       request.onsuccess = () => resolve(request.result)
       request.onerror = () => reject(request.error)
     })

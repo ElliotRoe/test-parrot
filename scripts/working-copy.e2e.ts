@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test'
 
 test('Save, local recovery, and Discard keep an Exam Working Copy distinct from its saved Exam', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   const name = page.getByRole('textbox', { name: 'Exam name' })
   await name.fill('Saved composition')
 
@@ -26,7 +27,8 @@ test('Save, local recovery, and Discard keep an Exam Working Copy distinct from 
 
 test('Save As moves a changed Working Copy into a named independent Exam', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   const name = page.getByRole('textbox', { name: 'Exam name' })
   await name.fill('Original exam')
   await page.keyboard.press('Control+S')
@@ -48,8 +50,6 @@ test('Save As moves a changed Working Copy into a named independent Exam', async
 
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
   await expect(page.getByRole('button', { name: 'Changed exam Copy' })).toBeVisible()
-  await page.locator('.exam-card').filter({
-    has: page.getByRole('heading', { name: 'Original exam', exact: true }),
-  }).click()
+  await page.getByRole('button', { name: 'Original exam', exact: true }).click()
   await expect(name).toHaveValue('Original exam')
 })

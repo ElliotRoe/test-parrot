@@ -1,5 +1,11 @@
 import { describe, expect, test } from 'bun:test'
-import { jpegOrientation, loadExportImages, missingPicture, type MediaLoader } from './export-media'
+import {
+  jpegOrientation,
+  loadExportImages,
+  missingPicture,
+  questionNumberForMedia,
+  type MediaLoader,
+} from './export-media'
 import type { LayoutPlan } from './export-plan'
 import { pictureKey } from './picture-geometry'
 
@@ -30,6 +36,34 @@ describe('loading export pictures', () => {
   test('names the first picture it could not load', async () => {
     const plans = planOf({ type: 'image-block', attrs: { src, crop } })
     expect(missingPicture(plans, await loadExportImages(plans, async () => null))?.src).toBe(src)
+  })
+
+  test('loads the pictures a Suggested Answer prints in the Answer Key', async () => {
+    const answerSrc = `/local-images/${'b'.repeat(64)}`
+    const partSrc = `/local-images/${'c'.repeat(64)}`
+    const subpartSrc = `/local-images/${'d'.repeat(64)}`
+    const answer = (source: string) => [{ type: 'image-block', attrs: { src: source } }]
+    const plans = [{
+      pages: [{
+        items: [
+          { kind: 'answer-key-entry', number: 2, letter: null, suggestedAnswer: answer(answerSrc) },
+          {
+            kind: 'answer-key-entry',
+            number: 3,
+            letter: null,
+            parts: [
+              { letter: 'a', answer: null, suggestedAnswer: answer(partSrc) },
+              { letter: 'a (i)', subpart: true, answer: null, suggestedAnswer: answer(subpartSrc) },
+            ],
+          },
+        ],
+      }],
+    }] as unknown as LayoutPlan[]
+    const media: MediaLoader = async () => ({ data: new Uint8Array(), type: 'png', width: 10, height: 10 })
+    const loaded = await loadExportImages(plans, media)
+    expect([...loaded.keys()]).toEqual([answerSrc, partSrc, subpartSrc])
+    expect(missingPicture(plans, loaded)).toBeUndefined()
+    expect(questionNumberForMedia(plans, subpartSrc)).toBe(3)
   })
 })
 

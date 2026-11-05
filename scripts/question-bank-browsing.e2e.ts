@@ -88,7 +88,9 @@ const search = (page: Page) =>
   page.getByRole('searchbox', { name: 'Search question stems' })
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Question editor' })
 
-async function openBank(page: Page, questionIds: string[] = ['q1', 'q2']) {
+// Nothing on the Exam, so the bank lists every Question: beside an Exam it
+// lists only those not yet on it.
+async function openBank(page: Page, questionIds: string[] = []) {
   await seedAuthoringState(page, {
     questionBank: { questions: QUESTIONS },
     workingCopy: { title: 'Biology quiz', questionIds },
@@ -97,9 +99,16 @@ async function openBank(page: Page, questionIds: string[] = ['q1', 'q2']) {
   await expect(rows(page)).toHaveCount(QUESTIONS.length)
 }
 
+/** Takes every filter chip away. */
+async function clearFilters(page: Page) {
+  const remove = bank(page).getByRole('button', { name: /^Remove .* filter$/ })
+  while (await remove.count() > 0) await remove.first().click()
+}
+
 /** Chooses values in one of the bank's filter dropdowns. */
 async function filterBy(page: Page, category: string, ...values: string[]) {
-  await bank(page).getByRole('button', { name: category, exact: true }).click()
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: new RegExp(`^${category}`) }).click()
   for (const value of values) {
     await page.getByRole('checkbox', { name: value, exact: true }).check()
   }
@@ -117,7 +126,6 @@ test('a compact row shows the stem, its classification and nothing hidden', asyn
   await expect(leaves).toContainText('Multiple choice')
   await expect(leaves).toContainText('Easy')
   await expect(leaves).toContainText('Biology')
-  await expect(leaves).toContainText('In exam')
   // Answer choices and their correctness stay behind the popup.
   await expect(bank(page)).not.toContainText('Chlorophyll')
   await expect(bank(page)).not.toContainText('Keratin')
@@ -166,8 +174,7 @@ test('search matches stems only, and clearing it restores the bank', async ({ pa
   await expect(rows(page)).toHaveCount(0)
   await expect(bank(page)).toContainText('No questions match')
 
-  await bank(page).getByRole('button', { name: 'Clear filters' }).click()
-  await expect(search(page)).toHaveValue('')
+  await search(page).fill('')
   await expect(rows(page)).toHaveCount(QUESTIONS.length)
   await expect(rows(page).nth(0)).toContainText('Read the graph')
 })
@@ -184,35 +191,43 @@ test('filter values combine with OR inside a category and AND across them', asyn
   await expect(rows(page)).toHaveCount(1)
   await expect(rows(page).nth(0)).toContainText('Photosynthesis in leaves')
 
-  await bank(page).getByRole('button', { name: 'Clear filters' }).click()
+  await clearFilters(page)
   await filterBy(page, 'Difficulty', 'Unspecified')
   await expect(rows(page)).toHaveCount(1)
   await expect(rows(page).nth(0)).toContainText('Photosynthesis at night')
 
-  await bank(page).getByRole('button', { name: 'Clear filters' }).click()
+  await clearFilters(page)
   await filterBy(page, 'Topic', 'Plants')
   await expect(rows(page)).toHaveCount(1)
   await expect(rows(page).nth(0)).toContainText('Photosynthesis at night')
 
-  await bank(page).getByRole('button', { name: 'Clear filters' }).click()
+  await clearFilters(page)
   await search(page).fill('photosynthesis')
   await filterBy(page, 'Topic', 'Cell division')
   await expect(rows(page)).toHaveCount(0)
 })
 
-test('Add all composes only the filtered questions as one action', async ({ page }) => {
+test('Cmd/Ctrl-A selects only the filtered questions, and one drag composes them as one action', async ({ page }) => {
   await openBank(page, [])
   await filterBy(page, 'Topic', 'Biology')
   await expect(rows(page)).toHaveCount(2)
 
-  await bank(page).getByRole('button', { name: 'Add all', exact: true }).click()
+  await rows(page).first().click()
+  await page.keyboard.press('ControlOrMeta+a')
+  await expect(bank(page).locator('.question-bank-row[aria-current="true"]')).toHaveCount(2)
+
+  const from = (await rows(page).first().boundingBox())!
+  const to = (await page.locator('.exam-workspace .exam-page').first().boundingBox())!
+  await page.mouse.move(from.x + 30, from.y + from.height / 2)
+  await page.mouse.down()
+  await page.mouse.move(to.x + to.width / 2, to.y + 200, { steps: 12 })
+  await page.mouse.up()
 
   const examQuestions = page.locator('.exam-question[data-question-id]')
   await expect(examQuestions).toHaveCount(2)
   await expect(examQuestions).toContainText(['Photosynthesis at night', 'Photosynthesis in leaves'])
   await expect(page.locator('.exam-question[data-question-id="q2"]')).toHaveCount(0)
   await expect(page.locator('.exam-question[data-question-id="q4"]')).toHaveCount(0)
-  await expect(bank(page).getByRole('button', { name: 'Add all', exact: true })).toBeDisabled()
 
   // One bulk command, one undo step.
   await page.keyboard.press('Control+z')
@@ -239,7 +254,8 @@ test('browsing the Question Bank is not an authoring action', async ({ page }) =
 
 test('an empty Question Bank reads differently from one nothing matches', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await expect(bank(page)).toContainText('No questions yet')
 
   await openBank(page)
@@ -259,7 +275,8 @@ test('a highlighted row is let go of by pressing Escape or by pressing elsewhere
 
   await row(page, 'Photosynthesis at night').click()
   await expect(row(page, 'Photosynthesis at night')).toHaveAttribute('aria-current', 'true')
-  await bank(page).getByRole('heading', { name: 'Question Bank' }).click()
+  // A click on the bank's own ground, away from any row or control.
+  await bank(page).click({ position: { x: 6, y: 6 } })
   await expect(row(page, 'Photosynthesis at night')).not.toHaveAttribute('aria-current', 'true')
 })
 
@@ -270,7 +287,8 @@ test('a filter list stays over the bank rather than the sheet beside it', async 
   // last of them is the one that would hang over the divider and the rendered
   // page — which paint over it, because the bank pane is its own stacking
   // context. Geometry is the claim, so it is measured.
-  await bank(page).getByRole('button', { name: 'Difficulty', exact: true }).click()
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: /^Difficulty/ }).click()
   const list = page.getByRole('group', { name: 'Difficulty' })
   await expect(list).toBeVisible()
 

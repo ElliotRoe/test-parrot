@@ -8,18 +8,32 @@ import { createWorkingCopy } from './question-bank'
 import { collectUnusedMediaAssets } from './local-images'
 import type { ExamDeletionSummary } from './exam-deletion'
 import {
-  CANONICAL_QUESTION_STORE,
   EDITOR_WORKSPACE_STORE,
   EXAM_STORE,
   EXAM_WORKSPACE_STORE,
-  QUESTION_BANK_REGISTRY_STORE,
   QUESTION_BANK_WORKSPACE_STORE,
-  MEDIA_ASSET_STORE,
   STORAGE_NAME,
   STORAGE_VERSION,
+  FOLDER_STORE,
+  releasedOnVersionChange,
+  upgradeRegistry,
 } from './storage-schema'
+import { folderMap, inTrash, type FolderRecord } from './resource-places'
 
-export type ExamSummary = { id: string; createdAt: string; lastOpenedAt: string }
+/** An Exam's registry record. Where it sits, its Star and its Trash state are
+ *  organization only (ADR-0051): nothing about its content depends on them.
+ *  Records written before Folders have no `parentId`, which means the top
+ *  level, and no `lastModifiedAt`. */
+export type ExamSummary = {
+  id: string
+  createdAt: string
+  lastOpenedAt: string
+  /** Any change to its Working Copy, a Save, a rename or a move. */
+  lastModifiedAt?: string
+  parentId?: string | null
+  starred?: boolean
+  trashedAt?: string
+}
 type ActiveWorkspace = { key: 'active'; examId: string }
 export type RecentExam = ExamSummary & {
   title: string
@@ -96,17 +110,8 @@ function complete(transaction: IDBTransaction): Promise<void> {
 function openRegistry(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(STORAGE_NAME, STORAGE_VERSION)
-    request.onupgradeneeded = () => {
-      const database = request.result
-      if (!database.objectStoreNames.contains(EXAM_STORE)) database.createObjectStore(EXAM_STORE, { keyPath: 'id' })
-      if (!database.objectStoreNames.contains(EXAM_WORKSPACE_STORE)) database.createObjectStore(EXAM_WORKSPACE_STORE, { keyPath: 'key' })
-      if (!database.objectStoreNames.contains(QUESTION_BANK_REGISTRY_STORE)) database.createObjectStore(QUESTION_BANK_REGISTRY_STORE, { keyPath: 'id' })
-      if (!database.objectStoreNames.contains(CANONICAL_QUESTION_STORE)) database.createObjectStore(CANONICAL_QUESTION_STORE, { keyPath: 'id' })
-      if (!database.objectStoreNames.contains(QUESTION_BANK_WORKSPACE_STORE)) database.createObjectStore(QUESTION_BANK_WORKSPACE_STORE, { keyPath: 'key' })
-      if (!database.objectStoreNames.contains(EDITOR_WORKSPACE_STORE)) database.createObjectStore(EDITOR_WORKSPACE_STORE, { keyPath: 'key' })
-      if (!database.objectStoreNames.contains(MEDIA_ASSET_STORE)) database.createObjectStore(MEDIA_ASSET_STORE, { keyPath: 'hash' })
-    }
-    request.onsuccess = () => resolve(request.result)
+    request.onupgradeneeded = (event) => upgradeRegistry(request.result, request.transaction, event.oldVersion)
+    request.onsuccess = () => resolve(releasedOnVersionChange(request.result))
     request.onerror = () => reject(request.error)
   })
 }
@@ -134,7 +139,6 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
   const now = options.now ?? (() => new Date())
   const createId = options.createId ?? (() => crypto.randomUUID())
   const registry = openRegistry()
-  const backendFor = (id: string) => createIndexedDBAuthoringBackend(examDatabaseName(id))
   const transact = async <T>(stores: string | string[], mode: IDBTransactionMode, operation: (transaction: IDBTransaction) => Promise<T> | T) => {
     const transaction = (await registry).transaction(stores, mode)
     const completed = complete(transaction)
@@ -146,6 +150,39 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
       try { transaction.abort() } catch { /* The transaction already settled. */ }
       await completed.catch(() => undefined)
       throw error
+    }
+  }
+  /** Marks the Exam modified now. Missing Exams are left missing. */
+  const touch = (id: string, change: Partial<ExamSummary> = {}) => transact(EXAM_STORE, 'readwrite', async (transaction) => {
+    const store = transaction.objectStore(EXAM_STORE)
+    const exam = await requestOf(store.get(id)) as ExamSummary | undefined
+    if (exam) store.put({ ...exam, ...change, lastModifiedAt: now().toISOString() })
+  })
+  /** The Exam's own database, with every change to its Working Copy, and
+   *  every Save, also marking the Exam modified in the registry. A write that
+   *  changes nothing the teacher made (a reload's backup, say) does not. */
+  const backendFor = (id: string) => {
+    const backend = createIndexedDBAuthoringBackend(examDatabaseName(id))
+    let lastWritten: string | null = null
+    const fingerprint = (state: AuthoringState) => JSON.stringify([state.workingCopy, state.questionBank])
+    return {
+      ...backend,
+      write: async (state: AuthoringState) => {
+        if (lastWritten === null) {
+          const before = await backend.read().catch(() => null)
+          lastWritten = before ? fingerprint(before) : ''
+        }
+        await backend.write(state)
+        const written = fingerprint(state)
+        if (written !== lastWritten) {
+          lastWritten = written
+          await touch(id).catch(() => undefined)
+        }
+      },
+      commitSaved: async (saved: Parameters<typeof backend.commitSaved>[0]) => {
+        await backend.commitSaved(saved)
+        await touch(id).catch(() => undefined)
+      },
     }
   }
   /** The registry stops naming the Exam, and nothing remembered by its id
@@ -177,15 +214,21 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
         requestOf(transaction.objectStore(EXAM_STORE).get(id)) as Promise<ExamSummary | undefined>,
       ))
     },
+    /** The Exam's registry record: where it sits, its Star and Trash state. */
+    async summary(id: string): Promise<ExamSummary | null> {
+      return (await transact(EXAM_STORE, 'readonly', (transaction) =>
+        requestOf(transaction.objectStore(EXAM_STORE).get(id)) as Promise<ExamSummary | undefined>,
+      )) ?? null
+    },
     async activeId(): Promise<string | null> {
       return await transact(EXAM_WORKSPACE_STORE, 'readonly', async (transaction) => {
         const record = await requestOf(transaction.objectStore(EXAM_WORKSPACE_STORE).get('active')) as ActiveWorkspace | undefined
         return record?.examId ?? null
       })
     },
-    async create(firstQuestion?: Question): Promise<ExamSummary> {
+    async create(firstQuestion?: Question, parentId: string | null = null): Promise<ExamSummary> {
       const timestamp = now().toISOString()
-      const exam = { id: createId(), createdAt: timestamp, lastOpenedAt: timestamp }
+      const exam: ExamSummary = { id: createId(), createdAt: timestamp, lastOpenedAt: timestamp, lastModifiedAt: timestamp, parentId }
       const initial: AuthoringState = {
         questionBank: { questions: firstQuestion ? [firstQuestion] : [] },
         workingCopy: {
@@ -214,11 +257,14 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
       })
       return exam
     },
+    /** False when there is no such Exam, or it is in Trash: an Exam in Trash
+     *  cannot be opened until it is restored (ADR-0051). */
     async open(id: string): Promise<boolean> {
-      const exam = await transact(EXAM_STORE, 'readonly', (transaction) =>
+      const [exam, folders] = await transact([EXAM_STORE, FOLDER_STORE], 'readonly', (transaction) => Promise.all([
         requestOf(transaction.objectStore(EXAM_STORE).get(id)) as Promise<ExamSummary | undefined>,
-      )
-      if (!exam) return false
+        requestOf(transaction.objectStore(FOLDER_STORE).getAll()) as Promise<FolderRecord[]>,
+      ]))
+      if (!exam || inTrash(exam, folderMap(folders))) return false
       await transact([EXAM_STORE, EXAM_WORKSPACE_STORE, EDITOR_WORKSPACE_STORE], 'readwrite', (transaction) => {
         transaction.objectStore(EXAM_STORE).put({ ...exam, lastOpenedAt: now().toISOString() })
         transaction.objectStore(EXAM_WORKSPACE_STORE).put({ key: 'active', examId: id } satisfies ActiveWorkspace)
@@ -232,13 +278,21 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
      * IndexedDB databases in this storage generation, so writes around that
      * registry commit are compensated on failure before this promise rejects.
      */
-    async saveAs(sourceId: string, snapshot: SaveAsSnapshot): Promise<ExamSummary> {
+    /** The copy lands beside its source, in the same Folder. Unless asked not
+     *  to, as Make a copy on Home does, it becomes the Exam being edited. */
+    async saveAs(sourceId: string, snapshot: SaveAsSnapshot, { activate = true }: { activate?: boolean } = {}): Promise<ExamSummary> {
       const source = await transact(EXAM_STORE, 'readonly', (transaction) =>
         requestOf(transaction.objectStore(EXAM_STORE).get(sourceId)) as Promise<ExamSummary | undefined>,
       )
       if (!source) throw new Error('The source Exam is unavailable.')
       const timestamp = now().toISOString()
-      const target = { id: createId(), createdAt: timestamp, lastOpenedAt: timestamp }
+      const target: ExamSummary = {
+        id: createId(),
+        createdAt: timestamp,
+        lastOpenedAt: timestamp,
+        lastModifiedAt: timestamp,
+        parentId: source.parentId ?? null,
+      }
       const sourceBackend = backendFor(sourceId)
       const targetBackend = backendFor(target.id)
       const previousWorking = await sourceBackend.read()
@@ -254,6 +308,7 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
         sourceWritten = true
         await transact([EXAM_STORE, EXAM_WORKSPACE_STORE, EDITOR_WORKSPACE_STORE], 'readwrite', (transaction) => {
           transaction.objectStore(EXAM_STORE).put(target)
+          if (!activate) return
           transaction.objectStore(EXAM_WORKSPACE_STORE).put({ key: 'active', examId: target.id } satisfies ActiveWorkspace)
           transaction.objectStore(EDITOR_WORKSPACE_STORE).put({ key: 'active', mode: 'exam', resourceId: target.id })
         })
@@ -271,6 +326,44 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
         }
         throw error
       }
+    },
+    /** Renames the Exam from outside its editor, as Home does: the title its
+     *  Working Copy and its saved state both carry, so the rename is not left
+     *  as an unsaved change. */
+    async rename(id: string, title: string): Promise<void> {
+      if (!await service.exists(id)) return
+      const backend = createIndexedDBAuthoringBackend(examDatabaseName(id))
+      try {
+        const [working, saved] = await Promise.all([backend.read(), backend.readSaved()])
+        if (!working) return
+        await backend.commitCanonicalProjection({
+          working: { ...working, workingCopy: { ...working.workingCopy, title } },
+          saved: saved ? { ...saved, workingCopy: { ...saved.workingCopy, title } } : null,
+        })
+      } finally {
+        await backend.close()
+      }
+      await touch(id)
+    },
+    /** Updates where the Exam sits, its Star or its Trash state. */
+    async place(id: string, change: Pick<ExamSummary, 'parentId' | 'starred' | 'trashedAt'>, { modified = false } = {}): Promise<void> {
+      await transact([EXAM_STORE, EXAM_WORKSPACE_STORE, EDITOR_WORKSPACE_STORE], 'readwrite', async (transaction) => {
+        const store = transaction.objectStore(EXAM_STORE)
+        const exam = await requestOf(store.get(id)) as ExamSummary | undefined
+        if (!exam) return
+        const next: ExamSummary = { ...exam, ...change, ...(modified ? { lastModifiedAt: now().toISOString() } : {}) }
+        if (next.trashedAt === undefined) delete next.trashedAt
+        store.put(next)
+        // An Exam going to Trash is not the one a bare /editor restores.
+        if (change.trashedAt) {
+          const [active, editor] = await Promise.all([
+            requestOf(transaction.objectStore(EXAM_WORKSPACE_STORE).get('active')) as Promise<ActiveWorkspace | undefined>,
+            requestOf(transaction.objectStore(EDITOR_WORKSPACE_STORE).get('active')) as Promise<{ resourceId?: string } | undefined>,
+          ])
+          if (active?.examId === id) transaction.objectStore(EXAM_WORKSPACE_STORE).delete('active')
+          if (editor?.resourceId === id) transaction.objectStore(EDITOR_WORKSPACE_STORE).delete('active')
+        }
+      })
     },
     async recent(): Promise<RecentExam[]> {
       const exams = await transact(EXAM_STORE, 'readonly', (transaction) =>

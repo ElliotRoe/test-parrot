@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test'
 
 async function openEditor(page: import('@playwright/test').Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await page.getByRole('textbox', { name: 'Exam name' }).waitFor()
 }
 

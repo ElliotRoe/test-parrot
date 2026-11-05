@@ -1148,6 +1148,9 @@ function NewSectionTarget({ afterSectionId, armed }: NewSectionTargetState) {
 /** Rewords a Question Section's heading on this Exam; `null` restores a part. */
 export type SetSectionHeading = (sectionId: string, change: SectionHeadingChange) => void
 
+/** The two parts of a Section's heading, as typed. */
+type SectionWording = { title: string; instructions: string }
+
 /** What a Question Section's own controls do: move it past a neighbour, or
  *  delete it and Remove its questions — and, behind its more button, insert
  *  an empty Section beside it or merge it with a neighbour. A Section with no
@@ -1247,6 +1250,7 @@ function SectionHeadingField({
 // Section's controls in the gutter beside the sheet can give it one again.
 function EditableSectionHeading({
   item,
+  wording,
   disabled,
   onChange,
   emptyActive,
@@ -1255,6 +1259,11 @@ function EditableSectionHeading({
   onRevealed,
 }: {
   item: SectionHeadingItem
+  /** What the fields hold: the Section's own wording, not the plan's copy of
+   *  it. The plan catches up with an edit a moment later, and a field handed
+   *  that older text after each keystroke throws the caret to the end once the
+   *  plan catches up. */
+  wording: SectionWording
   disabled: boolean
   onChange: SetSectionHeading
   /** For an empty Section: whether a gesture would land in it. */
@@ -1269,8 +1278,8 @@ function EditableSectionHeading({
     if (on && part === 'title') onRevealed()
     setFocused((current) => (on ? part : current === part ? null : current))
   }
-  const showTitle = item.title !== '' || focused === 'title' || revealTitle
-  const showInstructions = item.instructions !== '' || focused === 'instructions'
+  const showTitle = wording.title !== '' || focused === 'title' || revealTitle
+  const showInstructions = wording.instructions !== '' || focused === 'instructions'
   // An empty Section prints just its heading, so at rest that is all the sheet
   // draws of it, and its heading is where a gesture drops into it. While a
   // gesture is aimed at it, a box opens in the sheet's flow below the heading,
@@ -1311,7 +1320,7 @@ function EditableSectionHeading({
         <h2 className="section-title" style={styles.title}>
           <SectionHeadingField
             label="Section heading"
-            value={item.title}
+            value={wording.title}
             placeholder="Section heading"
             disabled={disabled}
             autoFocus={revealTitle}
@@ -1324,7 +1333,7 @@ function EditableSectionHeading({
         <p className="section-instructions" style={styles.instructions}>
           <SectionHeadingField
             label="Section directions"
-            value={item.instructions}
+            value={wording.instructions}
             placeholder="Directions"
             disabled={disabled}
             onChange={(instructions) => onChange(item.sectionId, { instructions })}
@@ -1458,6 +1467,7 @@ function PageItemView({
   onDrop,
   onDragEnd,
   onSectionHeadingChange,
+  sectionHeadingOf,
   sectionHeadingDisabled = false,
   sectionIdOf,
   newSectionTarget,
@@ -1468,6 +1478,8 @@ function PageItemView({
   item: PageItem
   /** Present in the editor: rewords a section heading where it prints. */
   onSectionHeadingChange?: SetSectionHeading
+  /** A Section's wording as it stands now, which the plan's copy lags. */
+  sectionHeadingOf: (sectionId: string) => SectionWording | undefined
   sectionHeadingDisabled?: boolean
   /** The Section whose cleared heading its controls asked to open, if any. */
   revealTitleOf: string | null
@@ -1506,6 +1518,7 @@ function PageItemView({
       return onSectionHeadingChange ? (
         <EditableSectionHeading
           item={item}
+          wording={sectionHeadingOf(item.sectionId) ?? item}
           disabled={sectionHeadingDisabled}
           onChange={onSectionHeadingChange}
           emptyActive={emptySectionActive(item.sectionId)}
@@ -1804,6 +1817,7 @@ export function ExamPage({
   drag,
   revealQuestionId,
   onRevealed,
+  revealAlignment = 'nearest',
   onEdit,
   onDuplicate,
   onShuffleSelected,
@@ -1839,6 +1853,9 @@ export function ExamPage({
    *  on a page — which, for an insertion, is not the same moment. */
   revealQuestionId?: string | null
   onRevealed?: () => void
+  /** Where the revealed question is brought to: the nearest edge for one an
+   *  action has just put on the page, the top for one the teacher went to. */
+  revealAlignment?: ScrollLogicalPosition
   onEdit: (questionId: string) => void
   onDuplicate: (questionId: string) => void
   onShuffleSelected: (questionIds: readonly string[]) => void
@@ -2027,9 +2044,17 @@ export function ExamPage({
     )
     // Not paginated onto a page yet: this effect runs again on the next plan.
     if (!element) return
-    element.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    const lane = element.closest('.editor-output')
+    if (revealAlignment === 'start' && lane && lane.scrollHeight > lane.clientHeight) {
+      // Gone to from the outline: only down or up. Moving the lane sideways
+      // too would carry the outline itself off to the side.
+      const margin = parseFloat(getComputedStyle(element).scrollMarginTop) || 0
+      lane.scrollTop += element.getBoundingClientRect().top - lane.getBoundingClientRect().top - margin
+    } else {
+      element.scrollIntoView({ block: revealAlignment, inline: 'nearest' })
+    }
     onRevealed?.()
-  }, [revealQuestionId, plan, onRevealed])
+  }, [revealQuestionId, plan, onRevealed, revealAlignment])
 
   // Keyed on the numbered piece: a split question's handles and menu belong to
   // the piece carrying its number, and that is the one holding its `number`.
@@ -2045,6 +2070,7 @@ export function ExamPage({
   // The Exam's Sections, and the one each question is in: what a Section's
   // controls, and a gesture reading the sheet, both need.
   const sections = sectionsOf(exam)
+  const sectionHeadingOf = (sectionId: string) => sections.find(({ id }) => id === sectionId)
   const sectionOfQuestion = new Map(
     sections.flatMap((section) =>
       questionsInSection(exam, arrangement, section.id).map(({ id }) => [id, section.id] as const),
@@ -2083,6 +2109,17 @@ export function ExamPage({
     )
   }, [])
   useLayoutEffect(measureSectionBands, [measureSectionBands, plan, drag.intent])
+  // The sheet moves sideways without repaginating — the Question Bank Pane or
+  // the outline opening or closing re-centres it — so the bands, which hold
+  // where the sheet's left edge is for the controls in its gutter, are read
+  // again whenever the workspace changes size.
+  useEffect(() => {
+    const root = workspace.current
+    if (!root) return
+    const observer = new ResizeObserver(() => measureSectionBands())
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [measureSectionBands])
   useEffect(() => {
     // A target that opens in the sheet's flow grows into place, so the bands
     // are read again once it has.
@@ -2392,8 +2429,9 @@ export function ExamPage({
             header={page.header}
             furniture={page.furniture}
             identityEditor={identityEditorFor(page.header)}
-            onTitleChange={index === titleLine ? onTitleChange : undefined}
-            titleDisabled={titleDisabled}
+            titleEditor={index === titleLine && onTitleChange
+              ? { text: exam.title, disabled: titleDisabled, onChange: onTitleChange }
+              : undefined}
           />
           <div
             className="page-content"
@@ -2420,6 +2458,7 @@ export function ExamPage({
                 key={keyOf(item)}
                 item={item}
                 onSectionHeadingChange={onSectionHeadingChange}
+                sectionHeadingOf={sectionHeadingOf}
                 revealTitleOf={revealTitleOf}
                 onTitleRevealed={() => setRevealTitleOf(null)}
                 sectionHeadingDisabled={titleDisabled}

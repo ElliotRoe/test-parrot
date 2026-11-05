@@ -1,4 +1,5 @@
-import { duplicateQuestion, type Question } from './exam'
+import { duplicateQuestion, type Difficulty, type Question, type QuestionType } from './exam'
+import type { Place } from './resource-places'
 import { requestPersistentStorage } from './durable-storage'
 import { collectUnusedMediaAssets } from './local-images'
 import { NO_FILTER, type QuestionBankFilter } from './question-bank-view'
@@ -10,12 +11,13 @@ import {
   CANONICAL_QUESTION_STORE,
   EDITOR_WORKSPACE_STORE,
   EXAM_STORE,
-  EXAM_WORKSPACE_STORE,
   QUESTION_BANK_REGISTRY_STORE,
   QUESTION_BANK_WORKSPACE_STORE,
   MEDIA_ASSET_STORE,
   STORAGE_NAME,
   STORAGE_VERSION,
+  releasedOnVersionChange,
+  upgradeRegistry,
 } from './storage-schema'
 
 export const UNTITLED_QUESTION_BANK = 'Untitled Question Bank'
@@ -34,9 +36,14 @@ export type QuestionBankResource = QuestionBankProvenance & {
   questions: Question[]
 }
 
-export type QuestionBankSummary = Omit<QuestionBankResource, 'questions'> & {
+export type QuestionBankSummary = Omit<QuestionBankResource, 'questions'> & Place & {
   questionCount: number
   topics: string[]
+  /** How many of its Questions are of each Question Type. */
+  typeCounts: Partial<Record<QuestionType, number>>
+  /** How many of its Questions are of each Difficulty; unrated ones aren't counted. */
+  difficultyCounts: Partial<Record<Difficulty, number>>
+  lastOpenedAt?: string
 }
 
 export type DeletionCascade = (questionIds: readonly string[]) => Promise<{
@@ -44,7 +51,7 @@ export type DeletionCascade = (questionIds: readonly string[]) => Promise<{
   finalize(): Promise<void>
 }>
 
-type StoredBank = Omit<QuestionBankResource, 'questions'> & { questionIds: string[] }
+type StoredBank = Omit<QuestionBankResource, 'questions'> & Place & { questionIds: string[]; lastOpenedAt?: string }
 type StoredQuestion = Question & { bankId: string }
 type BankWorkspace = { key: 'active'; bankId: string }
 /** Which Exam the editor was last on, so a bare `/editor` can restore it.
@@ -65,14 +72,32 @@ export type QuestionBankTabsWorkspace = {
   openBankIds: string[]
   activeBankId: string | null
   filters: Record<string, QuestionBankFilter>
-  pane: { bankPercent: number }
+  pane: EditorPanes
 }
+
+/** How the editor's two collapsible panes stand for one Exam: the Question
+ *  Bank Pane's width and whether it is open, and whether the Exam Outline is.
+ *  A record written before either could close has neither flag, and reads as
+ *  a new Exam does: the bank open, the outline closed. */
+export type EditorPanes = {
+  bankPercent: number
+  bankOpen: boolean
+  outlineOpen: boolean
+}
+
+const DEFAULT_PANES: EditorPanes = { bankPercent: 33, bankOpen: true, outlineOpen: false }
+
+const copyPanes = (pane: Partial<EditorPanes> | undefined): EditorPanes => ({
+  bankPercent: pane?.bankPercent ?? DEFAULT_PANES.bankPercent,
+  bankOpen: pane?.bankOpen ?? DEFAULT_PANES.bankOpen,
+  outlineOpen: pane?.outlineOpen ?? DEFAULT_PANES.outlineOpen,
+})
 
 export const DEFAULT_BANK_TABS_WORKSPACE: QuestionBankTabsWorkspace = {
   openBankIds: [],
   activeBankId: null,
   filters: {},
-  pane: { bankPercent: 33 },
+  pane: { ...DEFAULT_PANES },
 }
 
 type StoredTabsWorkspace = QuestionBankTabsWorkspace & {
@@ -91,6 +116,8 @@ const copyFilter = (filter: QuestionBankFilter = NO_FILTER): QuestionBankFilter 
   difficulties: [...filter.difficulties],
   topics: [...filter.topics],
   sort: filter.sort ?? 'newest',
+  ...(filter.thenBy?.length ? { thenBy: [...filter.thenBy] } : {}),
+  ...(filter.sortChosen ? { sortChosen: true as const } : {}),
 })
 
 const copyTabsWorkspace = (workspace: QuestionBankTabsWorkspace): QuestionBankTabsWorkspace => ({
@@ -99,7 +126,7 @@ const copyTabsWorkspace = (workspace: QuestionBankTabsWorkspace): QuestionBankTa
   filters: Object.fromEntries(
     Object.entries(workspace.filters).map(([id, filter]) => [id, copyFilter(filter)]),
   ),
-  pane: { ...workspace.pane },
+  pane: copyPanes(workspace.pane),
 })
 
 export function openBankTab(
@@ -190,6 +217,12 @@ export function isPristineQuestionBank(bank: QuestionBankResource | null): boole
   )
 }
 
+function tally<T extends string>(values: readonly T[]): Partial<Record<T, number>> {
+  const counts: Partial<Record<T, number>> = {}
+  for (const value of values) counts[value] = (counts[value] ?? 0) + 1
+  return counts
+}
+
 function requestOf<T>(request: IDBRequest<T>): Promise<T> {
   return new Promise((resolve, reject) => {
     request.onsuccess = () => resolve(request.result)
@@ -205,21 +238,11 @@ function completionOf(transaction: IDBTransaction): Promise<void> {
   })
 }
 
-function createGlobalStores(database: IDBDatabase) {
-  if (!database.objectStoreNames.contains(EXAM_STORE)) database.createObjectStore(EXAM_STORE, { keyPath: 'id' })
-  if (!database.objectStoreNames.contains(EXAM_WORKSPACE_STORE)) database.createObjectStore(EXAM_WORKSPACE_STORE, { keyPath: 'key' })
-  if (!database.objectStoreNames.contains(QUESTION_BANK_REGISTRY_STORE)) database.createObjectStore(QUESTION_BANK_REGISTRY_STORE, { keyPath: 'id' })
-  if (!database.objectStoreNames.contains(CANONICAL_QUESTION_STORE)) database.createObjectStore(CANONICAL_QUESTION_STORE, { keyPath: 'id' })
-  if (!database.objectStoreNames.contains(QUESTION_BANK_WORKSPACE_STORE)) database.createObjectStore(QUESTION_BANK_WORKSPACE_STORE, { keyPath: 'key' })
-  if (!database.objectStoreNames.contains(EDITOR_WORKSPACE_STORE)) database.createObjectStore(EDITOR_WORKSPACE_STORE, { keyPath: 'key' })
-  if (!database.objectStoreNames.contains(MEDIA_ASSET_STORE)) database.createObjectStore(MEDIA_ASSET_STORE, { keyPath: 'hash' })
-}
-
 function openRegistry(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(STORAGE_NAME, STORAGE_VERSION)
-    request.onupgradeneeded = () => createGlobalStores(request.result)
-    request.onsuccess = () => resolve(request.result)
+    request.onupgradeneeded = (event) => upgradeRegistry(request.result, request.transaction, event.oldVersion)
+    request.onsuccess = () => resolve(releasedOnVersionChange(request.result))
     request.onerror = () => reject(request.error)
     request.onblocked = () => reject(new Error(`Could not open ${STORAGE_NAME}`))
   })
@@ -407,7 +430,18 @@ export function createQuestionBankWorkspaceService(
     async updatePane(context: BankWorkspaceContext, bankPercent: number) {
       return mutateWorkspace(context, (workspace) => ({
         ...copyTabsWorkspace(workspace),
-        pane: { bankPercent: Math.min(80, Math.max(20, bankPercent)) },
+        pane: { ...copyPanes(workspace.pane), bankPercent: Math.min(80, Math.max(20, bankPercent)) },
+      }))
+    },
+    /** Opens or closes the Question Bank Pane or the Exam Outline for this
+     *  Exam, keeping everything else about its workspace. */
+    async updatePanes(
+      context: BankWorkspaceContext,
+      change: Partial<Pick<EditorPanes, 'bankOpen' | 'outlineOpen'>>,
+    ) {
+      return mutateWorkspace(context, (workspace) => ({
+        ...copyTabsWorkspace(workspace),
+        pane: { ...copyPanes(workspace.pane), ...change },
       }))
     },
     async carryWorkspace(from: BankWorkspaceContext, to: BankWorkspaceContext) {
@@ -570,7 +604,7 @@ export function createQuestionBankWorkspaceService(
         questionCount: plan.banks.reduce((total, { questions }) => total + questions.length, 0),
       }
     },
-    async create(): Promise<QuestionBankResource> {
+    async create(parentId: string | null = null): Promise<QuestionBankResource> {
       const timestamp = now().toISOString()
       const bank: QuestionBankResource = {
         id: createId(),
@@ -589,6 +623,7 @@ export function createQuestionBankWorkspaceService(
             createdAt: bank.createdAt,
             lastUpdatedAt: bank.lastUpdatedAt,
             questionIds: [],
+            parentId,
           } satisfies StoredBank)
           transaction.objectStore(QUESTION_BANK_WORKSPACE_STORE).put({ key: 'active', bankId: bank.id } satisfies BankWorkspace)
         },
@@ -624,8 +659,11 @@ export function createQuestionBankWorkspaceService(
     async open(id: string): Promise<QuestionBankResource | null> {
       const bank = await readBank(await registry, id)
       if (!bank) return null
-      await transact([QUESTION_BANK_WORKSPACE_STORE], 'readwrite', (transaction) => {
+      await transact([QUESTION_BANK_WORKSPACE_STORE, QUESTION_BANK_REGISTRY_STORE], 'readwrite', async (transaction) => {
         transaction.objectStore(QUESTION_BANK_WORKSPACE_STORE).put({ key: 'active', bankId: id } satisfies BankWorkspace)
+        const banks = transaction.objectStore(QUESTION_BANK_REGISTRY_STORE)
+        const stored = await requestOf(banks.get(id)) as StoredBank | undefined
+        if (stored) banks.put({ ...stored, lastOpenedAt: now().toISOString() })
       })
       return bank
     },
@@ -842,10 +880,40 @@ export function createQuestionBankWorkspaceService(
           ...(bank.license !== undefined ? { license: { ...bank.license } } : {}),
           createdAt: bank.createdAt,
           lastUpdatedAt: bank.lastUpdatedAt,
+          ...(bank.lastOpenedAt ? { lastOpenedAt: bank.lastOpenedAt } : {}),
+          parentId: bank.parentId ?? null,
+          ...(bank.starred ? { starred: true } : {}),
+          ...(bank.trashedAt ? { trashedAt: bank.trashedAt } : {}),
           questionCount: owned.length,
           topics: [...new Set(owned.flatMap((question) => question.topics ?? []))],
+          typeCounts: tally(owned.map((question) => question.type)),
+          difficultyCounts: tally(owned.flatMap((question) => question.difficulty ? [question.difficulty] : [])),
         }
       }).sort((left, right) => right.lastUpdatedAt.localeCompare(left.lastUpdatedAt))
+    },
+    /** Where the bank sits: a Folder's id, or null for the top level. */
+    async summaryPlace(id: string): Promise<string | null> {
+      return transact(QUESTION_BANK_REGISTRY_STORE, 'readonly', async (transaction) => {
+        const bank = await requestOf(transaction.objectStore(QUESTION_BANK_REGISTRY_STORE).get(id)) as StoredBank | undefined
+        return bank?.parentId ?? null
+      })
+    },
+    /** Updates where the bank sits, its Star or its Trash state. A move marks
+     *  it modified, as a move marks an Exam. */
+    async place(id: string, change: Place, { modified = false } = {}): Promise<void> {
+      await transact([QUESTION_BANK_REGISTRY_STORE, QUESTION_BANK_WORKSPACE_STORE], 'readwrite', async (transaction) => {
+        const banks = transaction.objectStore(QUESTION_BANK_REGISTRY_STORE)
+        const bank = await requestOf(banks.get(id)) as StoredBank | undefined
+        if (!bank) return
+        const next: StoredBank = { ...bank, ...change, ...(modified ? { lastUpdatedAt: now().toISOString() } : {}) }
+        if (next.trashedAt === undefined) delete next.trashedAt
+        banks.put(next)
+        if (change.trashedAt) {
+          const workspaces = transaction.objectStore(QUESTION_BANK_WORKSPACE_STORE)
+          const active = await requestOf(workspaces.get('active')) as BankWorkspace | undefined
+          if (active?.bankId === id) workspaces.delete('active')
+        }
+      })
     },
     async removePristine(id: string): Promise<boolean> {
       const bank = await readBank(await registry, id)

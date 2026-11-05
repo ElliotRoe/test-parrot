@@ -1,5 +1,9 @@
 import { defineConfig } from '@playwright/test'
 
+// Several worktrees share this machine; a run can ask for its own port.
+const port = Number(process.env.PLAYWRIGHT_PORT ?? 4174)
+const origin = `http://127.0.0.1:${port}`
+
 export default defineConfig({
   testDir: './scripts',
   testMatch: '*.e2e.ts',
@@ -11,21 +15,21 @@ export default defineConfig({
   workers: 1,
   retries: 2,
   use: {
-    baseURL: 'http://127.0.0.1:4174',
+    baseURL: origin,
     // A fresh browser is a first visit, and a first visit to `/` is the
     // front door rather than Home. The suites start from Home, so every
     // context arrives already welcomed.
     storageState: {
       cookies: [],
       origins: [{
-        origin: 'http://127.0.0.1:4174',
+        origin,
         localStorage: [{ name: 'test-parrot:welcomed', value: 'true' }],
       }],
     },
   },
   webServer: {
-    command: 'bunx vite --host 127.0.0.1 --port 4174',
-    url: 'http://127.0.0.1:4174',
+    command: `bunx vite --host 127.0.0.1 --port ${port}`,
+    url: origin,
     reuseExistingServer: true,
   },
 })

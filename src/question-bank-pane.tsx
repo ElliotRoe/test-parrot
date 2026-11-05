@@ -3,14 +3,14 @@
 // A compact, scannable table of the canonical questions a teacher has written,
 // newest first, with everything needed to find one and put it on the exam: a
 // stem search, Question Type, Difficulty and Topic filters, and a row that
-// opens, adds and removes its own question. Where on the exam a question lands
+// opens and adds its own question. Beside an Exam it lists only what is not on
+// the Exam yet: a Question leaves the list as it is added and returns when it
+// is Removed, and a line under the list says how many are on the Exam. Where on the exam a question lands
 // is said by dragging it there, rather than by a row action reaching for
 // whatever happens to be selected on the sheet.
 //
-// A row is a projection, not a rendering. It shows one line of the stem, the
-// classification, and whether the question is on the exam; answer choices and
-// correctness stay behind the popup, which remains the only place the whole of
-// a question is presented.
+// A row is a projection, not a rendering (see `question-summary.tsx`, which
+// the Exam Outline shares).
 //
 // Nothing here can Delete Question Content, and nothing here assembles an
 // authoring action out of smaller ones: every action calls exactly one of the
@@ -28,19 +28,15 @@ import {
   type ReactNode,
 } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowDownAZ, Check, CircleMinus, Pencil, Plus, Search, Upload } from 'lucide-react'
-import { DifficultyBadge, TopicBadge } from './badges'
+import { ArrowDownAZ, Pencil, Plus, Search, Upload } from 'lucide-react'
 import type { MenuPoint } from './context-menu'
 import { QuestionBankOutline } from './question-bank-outline'
 import { QuestionReading } from './question-reading'
 import { readingOfQuestion } from './question-reading-content'
-import { stemPreview, type StemPreviewBadge } from './stem-preview'
-import {
-  SECTION_LABELS,
-  topicsOf,
-  type Question,
-  type QuestionType,
-} from './exam'
+import { stemPreview } from './stem-preview'
+import type { Question, QuestionType } from './exam'
+import { QuestionSummary, UNTITLED } from './question-summary'
+import { BankQueryBar } from './bank-query-bar'
 import type { QuestionBank } from './question-bank'
 import type { WorkspaceDrag } from './use-workspace-drag'
 import { DIFFICULTY_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, type FilterOption } from './question-bank-filter-options'
@@ -62,15 +58,6 @@ import {
  *  list is placed against the viewport rather than by the cascade. */
 const LIST_WIDTH = 190
 const MARGIN = 8
-
-const BADGE_LABELS: Record<StemPreviewBadge, string> = {
-  image: 'Image',
-  math: 'Math',
-}
-
-/** What a row with nothing written into it is called. A question saves whether
- *  or not it says anything, so this is a real state rather than a placeholder. */
-const UNTITLED = 'Untitled question'
 
 
 /**
@@ -230,7 +217,6 @@ export function QuestionBankPane({
   onEdit,
   onAddToWorkingCopy,
   onAddManyToWorkingCopy,
-  onRemoveFromWorkingCopy,
   onPasteQuestions,
   drag,
 }: {
@@ -247,7 +233,9 @@ export function QuestionBankPane({
   /** Actions belonging to the surface the pane is mounted on rather than to
    *  the bank, laid out ahead of the bank's own. */
   extraActions?: ReactNode
-  /** Which bank records the Working Copy currently references. */
+  /** Which bank records the Working Copy currently references. Beside an
+   *  Exam these are not listed at all: the pane offers what is left to add,
+   *  so a Question leaves it as it is added and returns when it is Removed. */
   workingCopyIds: ReadonlySet<string>
   filter: QuestionBankFilter
   onFilterChange: (filter: QuestionBankFilter) => void
@@ -271,20 +259,23 @@ export function QuestionBankPane({
   onAddToWorkingCopy?: (questionId: string) => void
   /** Adds every supplied, currently visible bank record as one composition. */
   onAddManyToWorkingCopy?: (questionIds: readonly string[]) => void
-  /** Takes the question back off the Working Copy, leaving its bank record be. */
-  onRemoveFromWorkingCopy?: (questionId: string) => void
   /** Cmd/Ctrl-V of copied Questions: the Questions the paste names, in the
    *  order they were copied (see `question-clipboard.ts`). */
   onPasteQuestions?: (questionIds: string[]) => void
-  /** The gesture in flight. A row that is not already on the Working Copy is a
-   *  drag source for it; a row that is offers no gesture at all, because a
-   *  reference occurs at most once and refusing a drop after the fact would be
-   *  a worse way to say so. */
+  /** The gesture in flight. Every listed row is a drag source onto the
+   *  Working Copy: a Question already on it is not listed at all. */
   drag: WorkspaceDrag
 }) {
   const [scrolled, setScrolled] = useState(false)
   const copying = useQuestionCopy()
+  // Beside an Exam the rows are what can still be added to it. The Question
+  // Bank page lists every Question, and is handed no Working Copy.
   const questions = browseQuestionBank(bank, filter)
+    .filter(({ id }) => layout === 'page' || !workingCopyIds.has(id))
+  const inExamCount = layout === 'rows'
+    ? bank.questions.filter(({ id }) => workingCopyIds.has(id)).length
+    : 0
+  const allInExam = inExamCount > 0 && inExamCount === bank.questions.length
   const orderedIds = questions.map(({ id }) => id)
   const root = useRef<HTMLElement>(null)
   useSelectAll('question-bank', root, orderedIds, onSelectAll)
@@ -296,7 +287,7 @@ export function QuestionBankPane({
     bank.questions.filter(({ id }) => selectedQuestionIds.has(id)),
     (questionIds) => onPasteQuestions?.(questionIds),
   )
-  const addableQuestions = questions.filter(({ id }) => !workingCopyIds.has(id))
+  const addableQuestions = questions
   const filtered = isFilterActive(filter)
   // A gesture that has not yet moved far enough to be a drag. One pointer
   // drags at a time, so this is the pane's rather than each row's — and until
@@ -327,8 +318,7 @@ export function QuestionBankPane({
     }
   }
 
-  /** The pointer handlers a row that is not on the Working Copy carries. A row
-   *  that is carries none: it has nowhere to be dropped. */
+  /** The pointer handlers a row carries when there is an Exam to add it to. */
   const dragHandlers = (question: Question) => ({
     onPointerDown: (event: ReactPointerEvent<HTMLElement>) => {
       if (event.button !== 0) return
@@ -358,10 +348,7 @@ export function QuestionBankPane({
         suppressClickFor.current = held.questionId
         const questionIds = selectedQuestionIds.has(held.questionId)
           ? questions
-              .filter((candidate) =>
-                selectedQuestionIds.has(candidate.id)
-                && !workingCopyIds.has(candidate.id),
-              )
+              .filter((candidate) => selectedQuestionIds.has(candidate.id))
               .map(({ id }) => id)
           : [held.questionId]
         if (!selectedQuestionIds.has(held.questionId)) {
@@ -421,6 +408,35 @@ export function QuestionBankPane({
       }
     },
   })
+
+  // Beside an Exam the bank is queried as a Notion database is: a search box,
+  // Filter and Sort, what is set as chips beneath, and New at the end. Adding
+  // everything shown is Cmd/Ctrl-A and a drag, as for any selection.
+  const newQuestion = onCreate && (
+    <button
+      type="button"
+      className="primary-button bank-query-new"
+      aria-label="New question"
+      aria-haspopup="menu"
+      onClick={(event) => {
+        // Below the button and aligned with it, so the list of types reads as
+        // belonging to the control that asked for it.
+        const bounds = event.currentTarget.getBoundingClientRect()
+        onCreate({ x: bounds.left, y: bounds.bottom + 4 })
+      }}
+    >
+      <Plus aria-hidden="true" />
+      New
+    </button>
+  )
+  const queryBar = (
+    <BankQueryBar
+      filter={filter}
+      topics={topicOptions(bank)}
+      onChange={onFilterChange}
+      trailing={newQuestion}
+    />
+  )
 
   const filterBar = (
       <div className="question-bank-filters">
@@ -499,14 +515,23 @@ export function QuestionBankPane({
       </div>
   )
 
+  // How many of this bank's Questions the pane is not listing because they
+  // are on the Exam already — said under the list, so a teacher looking for
+  // one knows where it went.
+  const inExamLine = inExamCount > 0 && (
+    <p className="question-bank-in-exam" data-empty={allInExam ? 'all-in-exam' : undefined}>
+      {inExamCount} of this bank's questions {inExamCount === 1 ? 'is' : 'are'} in this exam
+    </p>
+  )
+
   const list = (
       questions.length === 0 ? (
-        // Two different nothings: a bank nobody has written into yet, and a
-        // bank whose questions are all behind the current search.
-        filtered ? (
+        // Three different nothings: a bank nobody has written into yet, a bank
+        // whose every Question is on the Exam already, and a bank whose
+        // questions are all behind the current search.
+        allInExam ? inExamLine : filtered ? (
           <p className="question-bank-empty" data-empty="no-matches">
-            No questions match this search and these filters. Clear filters shows
-            the whole Question Bank again.
+            No questions match this search and these filters.
           </p>
         ) : (
           <p className="question-bank-empty" data-empty="no-questions">
@@ -580,24 +605,19 @@ export function QuestionBankPane({
           </ul>
         </div>
       ) : (
-        <ul
-          className="question-bank-list"
+        <div
+          className="question-bank-list-lane"
           onScroll={(event) => setScrolled(event.currentTarget.scrollTop > 0)}
         >
+        <ul className="question-bank-list">
           {questions.map((question) => {
-            const inExamWorkingCopy = workingCopyIds.has(question.id)
-            const draggable = !inExamWorkingCopy && onAddToWorkingCopy !== undefined
-            const preview = stemPreview(question)
-            const name = preview.text || UNTITLED
-            const topics = topicsOf(question)
+            const draggable = onAddToWorkingCopy !== undefined
+            const name = stemPreview(question).text || UNTITLED
             return (
               <li
                 className="question-bank-row"
                 key={question.id}
                 data-question-id={question.id}
-                data-in-exam={inExamWorkingCopy ? 'true' : undefined}
-                // An unused row is a drag source; a row already on the Exam
-                // Draft is not one, and says so before the gesture starts.
                 data-draggable={draggable ? 'true' : undefined}
                 data-dragging={drag.draggedQuestionIds.has(question.id) ? 'true' : undefined}
                 aria-current={selectedQuestionIds.has(question.id) ? 'true' : undefined}
@@ -625,36 +645,7 @@ export function QuestionBankPane({
                   onEdit(question.id)
                 }}
               >
-                <div className="question-bank-row-content">
-                  <span className="question-bank-row-meta">
-                    <span className="question-bank-row-type">
-                      {SECTION_LABELS[question.type]}
-                      {preview.parts !== undefined
-                        && ` · ${preview.parts} ${preview.parts === 1 ? 'part' : 'parts'}`}
-                    </span>
-                    {question.difficulty && (
-                      <DifficultyBadge difficulty={question.difficulty} />
-                    )}
-                    {inExamWorkingCopy && (
-                      <span className="question-bank-row-badge">In exam</span>
-                    )}
-                  </span>
-                  <span className="question-bank-row-stem">
-                    <span className="question-bank-row-line">{name}</span>
-                    {preview.badges.map((badge) => (
-                      <span className="question-bank-row-content-badge" key={badge}>
-                        {BADGE_LABELS[badge]}
-                      </span>
-                    ))}
-                  </span>
-                  {topics.length > 0 && (
-                    <span className="question-bank-row-topics">
-                      {topics.map((topic) => (
-                        <TopicBadge topic={topic} key={topic} />
-                      ))}
-                    </span>
-                  )}
-                </div>
+                <QuestionSummary question={question} />
                 <div
                   className="question-bank-row-actions"
                   onClick={(event) => event.stopPropagation()}
@@ -676,25 +667,7 @@ export function QuestionBankPane({
                     onCopy={copying.copy}
                     className="question-bank-action"
                   />
-                  {/* A question already on the Working Copy offers no way onto it
-                      a second time — a reference occurs at most once — so the
-                      plus becomes a tick: the same slot answers "can I add
-                      this?" and "is it already on?". Reaching for it is the
-                      one thing a teacher could still want from that slot, so
-                      under the cursor the tick becomes the minus that takes
-                      the question back off the exam. */}
-                  {inExamWorkingCopy && onRemoveFromWorkingCopy ? (
-                    <button
-                      type="button"
-                      className="question-bank-action question-bank-included"
-                      aria-label={`Remove ${name} from the exam`}
-                      title="Remove from the exam"
-                      onClick={() => onRemoveFromWorkingCopy(question.id)}
-                    >
-                      <Check className="question-bank-included-resting" />
-                      <CircleMinus className="question-bank-included-hover" />
-                    </button>
-                  ) : onAddToWorkingCopy ? (
+                  {onAddToWorkingCopy && (
                     <button
                       type="button"
                       className="question-bank-action"
@@ -704,12 +677,14 @@ export function QuestionBankPane({
                     >
                       <Plus />
                     </button>
-                  ) : null}
+                  )}
                 </div>
               </li>
             )
           })}
         </ul>
+        {inExamLine}
+        </div>
       )
   )
 
@@ -738,7 +713,9 @@ export function QuestionBankPane({
           it: the list of questions is the only thing that scrolls, and the
           scrollbar is as tall as the list rather than as tall as the pane. */}
       <div className="question-bank-toolbar">
-        <header className="question-bank-header">
+        {/* Beside an Exam the pane's own header names the bank and offers
+            nothing to do to it: writing and exporting a bank are its page's. */}
+        {layout === 'page' && <header className="question-bank-header">
           {heading ?? <h2>Question Bank</h2>}
           <div className="question-bank-header-actions">
             {extraActions}
@@ -774,8 +751,9 @@ export function QuestionBankPane({
             {onExport && bank.questions.length === 0 && <span id="empty-bank-export-help" className="sr-only">At least one Question is required.</span>}
             {onExport && exportBlocked && <span id="editing-bank-export-help" className="sr-only">Save or cancel the open Question edit before exporting.</span>}
           </div>
-        </header>
-        {layout === 'rows' && filterBar}
+        </header>}
+        {layout === 'rows' && heading}
+        {layout === 'rows' && queryBar}
       </div>
 
       {layout === 'page' ? (

@@ -41,11 +41,12 @@ async function questionBankPdf(name = 'Portable chemistry') {
 }
 
 test('imports a validated PDF as a durable independent bank and allows duplicate names', async ({ page }) => {
-  await page.goto('/question-banks')
-  await expect(page.getByRole('heading', { name: 'Question Banks', exact: true })).toBeVisible()
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible()
   const before = await resourceCount(page)
-  const trigger = page.getByRole('button', { name: 'Import', exact: true })
+  const trigger = page.getByRole('button', { name: 'New', exact: true })
   await trigger.click()
+  await page.getByRole('menuitem', { name: 'Import file…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Import Question Bank' })
   await expect(dialog.getByLabel('Question Bank PDF')).toBeFocused()
   await dialog.getByLabel('Question Bank PDF').setInputFiles({ name: 'chemistry.pdf', mimeType: 'application/pdf', buffer: await questionBankPdf() })
@@ -61,8 +62,9 @@ test('imports a validated PDF as a durable independent bank and allows duplicate
   await expect(page.getByRole('textbox', { name: 'Question Bank name' })).toHaveValue('My Chemistry')
   await expect(page.getByRole('region', { name: 'Question Bank', exact: true })).toContainText('Which particle is neutral?')
 
-  await page.goto('/question-banks')
-  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await page.goto('/')
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Import file…' }).click()
   const again = page.getByRole('dialog', { name: 'Import Question Bank' })
   await again.getByLabel('Question Bank PDF').setInputFiles({ name: 'chemistry.pdf', mimeType: 'application/pdf', buffer: await questionBankPdf('My Chemistry') })
   await again.getByRole('button', { name: 'Import Question Bank' }).click()
@@ -72,11 +74,12 @@ test('imports a validated PDF as a durable independent bank and allows duplicate
 })
 
 test('cancellation and invalid files preserve resources and restore useful focus', async ({ page }) => {
-  await page.goto('/question-banks')
-  await expect(page.getByRole('heading', { name: 'Question Banks', exact: true })).toBeVisible()
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible()
   const before = await resourceCount(page)
-  const trigger = page.getByRole('button', { name: 'Import', exact: true })
+  const trigger = page.getByRole('button', { name: 'New', exact: true })
   await trigger.click()
+  await page.getByRole('menuitem', { name: 'Import file…' }).click()
   let dialog = page.getByRole('dialog', { name: 'Import Question Bank' })
   await dialog.getByLabel('Question Bank PDF').setInputFiles({ name: 'chemistry.pdf', mimeType: 'application/pdf', buffer: await questionBankPdf() })
   await expect(dialog.getByLabel('New Question Bank name')).toBeFocused()
@@ -86,6 +89,8 @@ test('cancellation and invalid files preserve resources and restore useful focus
   expect(await resourceCount(page)).toBe(before)
 
   await trigger.click()
+
+  await page.getByRole('menuitem', { name: 'Import file…' }).click()
   dialog = page.getByRole('dialog', { name: 'Import Question Bank' })
   await dialog.getByLabel('Question Bank PDF').setInputFiles({ name: 'hostile.pdf', mimeType: 'application/pdf', buffer: Buffer.from('not a PDF') })
   await expect(dialog.getByRole('alert')).toContainText('not a valid PDF')
@@ -95,9 +100,10 @@ test('cancellation and invalid files preserve resources and restore useful focus
 
 test('the review owns the viewport: the page behind it does not scroll', async ({ page }) => {
   await page.setViewportSize({ width: 720, height: 420 })
-  await page.goto('/question-banks')
-  await expect(page.getByRole('heading', { name: 'Question Banks', exact: true })).toBeVisible()
-  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await page.goto('/')
+  await expect(page.getByRole('heading', { name: 'Home', level: 1 })).toBeVisible()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Import file…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Import Question Bank' })
   await dialog.getByLabel('Question Bank PDF').setInputFiles({ name: 'chemistry.pdf', mimeType: 'application/pdf', buffer: await questionBankPdf() })
   await expect(dialog.getByLabel('New Question Bank name')).toBeVisible()
@@ -118,8 +124,9 @@ test('the review owns the viewport: the page behind it does not scroll', async (
 
 test('at a narrow width the import rail fills its row down to the actions and scrolls to its note', async ({ page }) => {
   await page.setViewportSize({ width: 720, height: 800 })
-  await page.goto('/question-banks')
-  await page.getByRole('button', { name: 'Import', exact: true }).click()
+  await page.goto('/')
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'Import file…' }).click()
   const dialog = page.getByRole('dialog', { name: 'Import Question Bank' })
   await dialog.getByLabel('Question Bank PDF').setInputFiles({ name: 'chemistry.pdf', mimeType: 'application/pdf', buffer: await questionBankPdf() })
   const rail = dialog.locator('.bank-import-controls')

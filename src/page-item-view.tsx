@@ -560,13 +560,14 @@ export function AnswerKeyEntry({ item }: { item: AnswerKeyEntryItem }) {
       <span className="answer-key-answer" aria-label={item.letter ?? 'Blank answer'}>
         {item.letter}
       </span>
-      <AnswerKeyPoints points={item.points} />
       {(item.difficulty || (item.topics?.length ?? 0) > 0) && (
         <span className="answer-key-metadata" aria-label="Question Metadata">
           {item.difficulty && <DifficultyBadge difficulty={item.difficulty} />}
           {(item.topics ?? []).map((topic) => <TopicBadge topic={topic} key={topic} />)}
         </span>
       )}
+      {/* Last, against the right margin, under the paper's total. */}
+      <AnswerKeyPoints points={item.points} />
       {item.suggestedAnswer && (
         <DocView className="answer-key-suggested" content={item.suggestedAnswer} />
       )}
@@ -637,6 +638,17 @@ export type IdentityLineEditor = {
   onChange: (text: string | null) => void
 }
 
+/** Where the Exam is renamed from its title line: the name as it stands now
+ *  and the change. The text is the Exam's own, never the plan's copy of it —
+ *  the plan catches up with an edit a moment later, and a field handed that
+ *  older text after each keystroke throws the caret to the end once the plan
+ *  catches up. */
+export type TitleEditor = {
+  text: string
+  disabled: boolean
+  onChange: (title: string) => void
+}
+
 // The header line on the sheet, reworded where it prints. Like the title, it
 // is always the field: the line is plain text, so the field reads exactly as
 // it prints, and a click puts the caret where it lands. Enter or Escape
@@ -685,8 +697,7 @@ export function PageHeaderContent({
   header,
   furniture,
   identityEditor,
-  onTitleChange,
-  titleDisabled = false,
+  titleEditor,
 }: {
   header: PageHeader
   furniture: PageFurniture
@@ -697,8 +708,7 @@ export function PageHeaderContent({
    *  value, two places to reach it. Every other caller (measurement, print
    *  reference, export preview) renders plain text, which is what the DOCX
    *  adapter prints too. */
-  onTitleChange?: (title: string) => void
-  titleDisabled?: boolean
+  titleEditor?: TitleEditor
 }) {
   // A title that wraps, or a page number printed above the line, grows its
   // header by what the plan measured, which the stylesheet's fixed band per
@@ -724,22 +734,22 @@ export function PageHeaderContent({
           className="exam-title"
           style={furniture.titleSize ? { fontSize: TITLE_PX[furniture.titleSize] } : undefined}
         >
-          {onTitleChange ? (
+          {titleEditor ? (
             // The underline belongs to the name, not to the width of the
             // page: the mirrored value behind the field is what sizes it, so
             // the field is exactly as wide as what has been typed, and wraps
             // onto as many lines as the printed title does. The title is one
             // line of text, so Enter finishes rather than breaking it.
-            <span className="exam-title-field" data-value={furniture.title || 'Untitled Exam'}>
+            <span className="exam-title-field" data-value={titleEditor.text || 'Untitled Exam'}>
               <textarea
                 aria-label="Title printed on the exam"
                 className="exam-title-input"
                 rows={1}
-                value={furniture.title}
-                disabled={titleDisabled}
+                value={titleEditor.text}
+                disabled={titleEditor.disabled}
                 placeholder="Untitled Exam"
                 spellCheck
-                onChange={(event) => onTitleChange(event.target.value.replace(/\s*\n\s*/g, ' '))}
+                onChange={(event) => titleEditor.onChange(event.target.value.replace(/\s*\n\s*/g, ' '))}
                 onKeyDown={(event) => {
                   if (event.key === 'Enter' || event.key === 'Escape') {
                     event.preventDefault()

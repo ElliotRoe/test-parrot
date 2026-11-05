@@ -141,18 +141,19 @@ test("failed deletion leaves canonical and visible state unchanged", async ({ pa
   await expect(page.getByRole("region", { name: "Question Bank" }).getByText("Shared cell question")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("region", { name: "Question Bank" }).getByText("Shared cell question")).toBeVisible();
-  await page.getByRole("button", { name: "Test Parrot home" }).click();
-  await page.getByRole("button", { name: /^Open Biology final/ }).click();
+  await page.getByRole("link", { name: "Test Parrot", exact: true }).click();
+  await page.getByRole("button", { name: "Biology final", exact: true }).click();
   await expect(page.locator(".exam-question")).toContainText("Shared cell question");
 });
 
 test("a named bank remains after its final Question is deleted", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "New Question Bank" }).first().click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("menuitem", { name: "New Question Bank" }).click();
   const name = page.getByRole("textbox", { name: "Question Bank name" });
   await name.fill("Keep Biology");
   await name.press("Enter");
-  await page.getByRole("button", { name: "Add Question" }).click();
+  await page.getByRole("button", { name: "New question" }).click();
   await page.getByRole("menuitem", { name: "Short answer" }).click();
   await page.keyboard.type("Only question");
   await page.keyboard.press("Control+Enter");
@@ -185,70 +186,32 @@ test("deleting the final Question from a pristine bank falls back without creati
   await page.getByRole("button", { name: "Edit Delete me" }).click();
   await page.getByRole("dialog", { name: "Question editor" }).getByRole("button", { name: "Delete Question" }).click();
   await page.getByRole("dialog", { name: "Permanently delete this Question?" }).getByRole("button", { name: "Delete Question" }).click();
-  await expect(page).toHaveURL(/\/question-banks$/);
-  await expect(page.getByRole("heading", { name: "Question Banks" })).toBeVisible();
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/);
+  await expect(page.getByRole("heading", { name: "Home", level: 1 })).toBeVisible();
   expect(await page.evaluate(async () => {
     const { createExamWorkspaceService } = await import(/* @vite-ignore */ "/src/exam-workspaces.ts") as typeof import("../src/exam-workspaces");
     return (await createExamWorkspaceService().recent()).length;
   })).toBe(0);
 });
 
-test("empty named bank uses a lighter irreversible confirmation", async ({
-  page,
-}) => {
-  await page.goto("/about");
-  await expect(page.getByRole("heading", { name: "About" })).toBeVisible();
-  await page.evaluate(async () => {
-    const { createQuestionBankWorkspaceService } = (await import(
-      /* @vite-ignore */ "/src/question-bank-workspaces.ts"
-    )) as typeof import("../src/question-bank-workspaces");
-    const service = createQuestionBankWorkspaceService();
-    const bank = await service.create();
-    await service.commit(bank.id, { kind: "rename", name: "Empty Biology" });
-  });
-  await page.goto("/question-banks");
-  await page.locator(".question-bank-card").filter({ hasText: "Empty Biology" }).getByRole("button", { name: "Empty Biology actions" }).click();
-  await page.getByRole("menuitem", { name: "Delete" }).click();
-  const confirmation = page.getByRole("dialog", {
-    name: "Permanently delete “Empty Biology”?",
-  });
-  await expect(confirmation).toContainText(
-    "This empty Question Bank will be permanently deleted",
-  );
-  await expect(confirmation).not.toContainText(
-    "Export History remains unchanged",
-  );
-  await confirmation.getByRole("button", { name: "Cancel" }).click();
-  await expect(page.getByRole("button", { name: "Open Empty Biology" })).toBeVisible();
-});
-
-test("Home deletes a populated bank after disclosing per-Exam losses and Export History", async ({
+test("deleting a bank from Home sends it to Trash, and only Delete forever takes its Questions from Exams", async ({
   page,
 }) => {
   const { bankId } = await seedDeletion(page);
   await page.goto("/");
-  const card = page
-    .locator(".question-bank-card")
-    .filter({ hasText: "Biology" });
-  await card.getByRole("button", { name: /actions$/ }).click();
+  await page.getByRole("button", { name: "Biology", exact: true }).click({ button: "right" });
   await page.getByRole("menuitem", { name: "Delete" }).click();
-  const confirmation = page.getByRole("dialog", {
-    name: "Permanently delete “Biology”?",
-  });
-  await expect(confirmation).toContainText("2 Questions");
-  await expect(confirmation).toContainText("1 affected Exam");
-  await expect(confirmation).toContainText(
-    "Biology final — 1 Question removed",
-  );
-  await expect(confirmation).toContainText("Export History remains unchanged");
-  await confirmation
-    .getByRole("button", { name: "Delete Question Bank" })
-    .click();
-  await expect(card).toHaveCount(0);
-  await expect(page.getByRole("button", { name: "Create your first Question Bank" })).toBeVisible();
-  await page.getByRole("button", { name: /^Open Biology final/ }).click();
-  await expect(page.locator(".exam-question")).toHaveCount(0);
-  await page.getByRole("button", { name: "Test Parrot home" }).click();
+  const warning = page.getByRole("dialog", { name: "Delete “Biology”?" });
+  await expect(warning).toContainText("Trash");
+  await expect(warning.getByRole("listitem")).toHaveText(["Biology final"]);
+  await warning.getByRole("button", { name: "Move to Trash" }).click();
+  await expect(page.getByRole("button", { name: "Biology", exact: true })).toHaveCount(0);
+
+  await page.goto("/trash");
+  await page.getByRole("button", { name: "Biology", exact: true }).click({ button: "right" });
+  await page.getByRole("menuitem", { name: "Delete forever" }).click();
+  await page.getByRole("dialog", { name: "Delete “Biology” forever?" }).getByRole("button", { name: "Delete forever" }).click();
+  await expect(page.getByText("Trash is empty")).toBeVisible();
 
   expect(
     await page.evaluate(async (id) => {

@@ -1,15 +1,17 @@
 import { expect, test } from '@playwright/test'
 
 async function newExam(page: import('@playwright/test').Page) {
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await expect(page.getByRole('textbox', { name: 'Exam name' })).toBeVisible()
 }
 
 test('Home opens independently persisted recent Exams and restores the active Exam', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('region', { name: 'Pick up where you left off' })).toContainText('Create your first Exam')
-  await page.getByRole('button', { name: 'New Question Bank' }).first().click()
-  await page.getByRole('button', { name: 'Add Question' }).click()
+  await expect(page.getByText('Nothing here yet')).toBeVisible()
+  await newExam(page)
+  await page.getByRole('button', { name: 'New Question Bank' }).click()
+  await page.getByRole('button', { name: 'New question' }).click()
   await page.getByRole('menuitem', { name: 'Multiple choice' }).click()
   await page.keyboard.type('First question preview')
   await page.keyboard.press('Control+Enter')
@@ -56,7 +58,8 @@ test('Recent Exams are ordered by opening, not background authoring writes', asy
   })
   expect(secondId).not.toBe(firstId)
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
-  const cards = page.getByRole('region', { name: 'Pick up where you left off' }).locator('.exam-card')
+  await page.getByRole('link', { name: 'Recent' }).click()
+  const cards = page.getByRole('list', { name: 'Resources' }).getByRole('listitem')
   await expect(cards).toHaveCount(2)
   await expect(cards.nth(0)).toContainText('Second Exam')
   await expect(cards.nth(1)).toContainText('First Exam')
@@ -67,6 +70,7 @@ test('Recent Exams are ordered by opening, not background authoring writes', asy
   await name.fill('First renamed')
   await page.reload()
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
+  await page.getByRole('link', { name: 'Recent' }).click()
   await expect(cards.nth(0)).toContainText('First renamed')
   await expect(cards.nth(1)).toContainText('Second Exam')
 })
@@ -91,7 +95,7 @@ test('a bare editor reload retains an active pristine workspace, while Home star
   // Simulates closing the editor and later starting at Home, rather than using
   // the Home action which intentionally cleans placeholders immediately.
   await page.goto('/')
-  await expect(page.getByRole('region', { name: 'Pick up where you left off' })).toContainText('Create your first Exam')
+  await expect(page.getByText('Nothing here yet')).toBeVisible()
 })
 
 test('client-side About navigation returns to refreshed Home cards without replaying editor state', async ({ page }) => {
@@ -100,9 +104,9 @@ test('client-side About navigation returns to refreshed Home cards without repla
   await page.getByRole('textbox', { name: 'Exam name' }).fill('Renamed through editor')
   await page.getByRole('link', { name: 'about' }).click()
   await expect(page.getByRole('heading', { name: 'About' })).toBeVisible()
-  await page.getByRole('link', { name: 'Home' }).click()
+  await page.getByRole('link', { name: 'Home' }).first().click()
   const card = page.getByRole('button', { name: 'Renamed through editor' })
-  await expect(card).toContainText('0 Qs')
+  await expect(card).toContainText('0 Questions')
   await expect(card).toContainText('Empty Exam')
   await page.goBack()
   await expect(page.getByRole('heading', { name: 'About' })).toBeVisible()

@@ -3,25 +3,54 @@
 // row that shows them must agree — a Topic that is one colour in the front
 // matter and another in the bank would read as two Topics.
 
-import { SignalHigh, SignalLow, SignalMedium, Tag } from 'lucide-react'
+import { Tag } from 'lucide-react'
 import { DIFFICULTY_LABELS, type Difficulty } from './exam'
-import type { ReactNode } from 'react'
 import { topicTint } from './topic-tint'
 
-/** Difficulty is ordered, so it is drawn as a rising signal rather than three
- *  unrelated pictures: the mark says which of the three it is even where the
- *  colour cannot. */
-const DIFFICULTY_ICONS: Record<Difficulty, ReactNode> = {
-  easy: <SignalLow />,
-  medium: <SignalMedium />,
-  hard: <SignalHigh />,
+/** Difficulty is ordered, so it is drawn as a rising stack of arrows — one
+ *  for Easy, two for Medium, three for Hard — rather than three unrelated
+ *  pictures: the mark says which of the three it is even where the colour
+ *  cannot, and it is the same mark wherever a Difficulty is shown. */
+const ARROW_ROWS: Record<Difficulty, readonly number[]> = {
+  easy: [15],
+  medium: [18, 11],
+  hard: [21, 14, 7],
 }
 
-export function DifficultyBadge({ difficulty }: { difficulty: Difficulty }) {
+export function DifficultyIcon({ difficulty }: { difficulty: Difficulty }) {
   return (
-    <span className="badge badge-difficulty" data-difficulty={difficulty}>
-      {DIFFICULTY_ICONS[difficulty]}
-      {DIFFICULTY_LABELS[difficulty]}
+    <svg
+      className="difficulty-arrows"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {ARROW_ROWS[difficulty].map((y) => <path key={y} d={`M6 ${y}l6-6 6 6`} />)}
+    </svg>
+  )
+}
+
+export function DifficultyBadge({ difficulty, iconOnly = false }: {
+  difficulty: Difficulty
+  /** The signal alone, where a line has no room for the word; it is still
+   *  named for a screen reader and on hover. */
+  iconOnly?: boolean
+}) {
+  return (
+    <span
+      className="badge badge-difficulty"
+      data-difficulty={difficulty}
+      data-icon-only={iconOnly ? 'true' : undefined}
+      title={iconOnly ? DIFFICULTY_LABELS[difficulty] : undefined}
+    >
+      <DifficultyIcon difficulty={difficulty} />
+      {iconOnly
+        ? <span className="sr-only">{DIFFICULTY_LABELS[difficulty]}</span>
+        : DIFFICULTY_LABELS[difficulty]}
     </span>
   )
 }
