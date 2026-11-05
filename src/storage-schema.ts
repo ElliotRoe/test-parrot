@@ -65,3 +65,11 @@ function migrateEachRecord(store: IDBObjectStore, change: (record: Record<string
     current.continue()
   }
 }
+
+/** A registry connection that lets go when another tab needs the database
+ *  upgraded or deleted, as restoring an Account Backup does. Held open, it
+ *  would block that tab indefinitely. */
+export function releasedOnVersionChange(database: IDBDatabase): IDBDatabase {
+  database.onversionchange = () => database.close()
+  return database
+}

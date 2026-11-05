@@ -15,6 +15,7 @@ import {
   STORAGE_NAME,
   STORAGE_VERSION,
   FOLDER_STORE,
+  releasedOnVersionChange,
   upgradeRegistry,
 } from './storage-schema'
 import { folderMap, inTrash, type FolderRecord } from './resource-places'
@@ -110,7 +111,7 @@ function openRegistry(): Promise<IDBDatabase> {
   return new Promise((resolve, reject) => {
     const request = indexedDB.open(STORAGE_NAME, STORAGE_VERSION)
     request.onupgradeneeded = (event) => upgradeRegistry(request.result, request.transaction, event.oldVersion)
-    request.onsuccess = () => resolve(request.result)
+    request.onsuccess = () => resolve(releasedOnVersionChange(request.result))
     request.onerror = () => reject(request.error)
   })
 }
