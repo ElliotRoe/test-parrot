@@ -3,7 +3,8 @@ import { expect, test } from '@playwright/test'
 test('on a short screen the slash menu’s Advanced group can still be reached and used', async ({ page }) => {
   await page.setViewportSize({ width: 1000, height: 560 })
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await page.getByRole('button', { name: 'New Question Bank' }).click()
   await page.getByRole('button', { name: 'Add Question' }).click()
   await page.getByRole('menuitem', { name: 'Multiple choice' }).click()

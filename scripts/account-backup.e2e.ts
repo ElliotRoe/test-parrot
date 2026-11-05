@@ -85,7 +85,7 @@ function backupCard(page: Page) {
 
 test('a downloaded account backup restores every Question Bank and image', async ({ page }) => {
   await seedAccount(page, 'Biology Bank')
-  await page.goto('/question-banks')
+  await page.goto('/')
   await openPanel(page)
   await expect(panel(page)).toContainText('Your work is saved in your browser.')
   await expect(panel(page)).toContainText('Go to Settings to export your data.')
@@ -105,7 +105,7 @@ test('a downloaded account backup restores every Question Bank and image', async
   expect(await mediaCount(page)).toBe(1)
 
   // Settings is also a destination in the left nav.
-  await page.goto('/question-banks')
+  await page.goto('/')
   await page.getByRole('link', { name: 'Settings', exact: true }).click()
   await page.getByLabel('Choose an account backup to restore').setInputFiles({
     name: 'test-parrot-account.zip', mimeType: 'application/zip', buffer: backup,
@@ -115,9 +115,9 @@ test('a downloaded account backup restores every Question Bank and image', async
   await confirm.getByRole('button', { name: 'Replace and reload' }).click()
 
   await expect(backupCard(page)).toBeVisible()
-  await page.goto('/question-banks')
-  await expect(page.getByRole('button', { name: `Open Biology Bank. 1` })).toBeVisible()
-  await expect(page.getByRole('button', { name: `Open Made after backup. 1` })).toHaveCount(0)
+  await page.goto('/')
+  await expect(page.getByRole('button', { name: 'Biology Bank', exact: true })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Made after backup', exact: true })).toHaveCount(0)
   expect(await bankNames(page)).toEqual(['Biology Bank'])
   expect(await mediaCount(page)).toBe(1)
 })

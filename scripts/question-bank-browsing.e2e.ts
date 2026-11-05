@@ -240,7 +240,8 @@ test('browsing the Question Bank is not an authoring action', async ({ page }) =
 
 test('an empty Question Bank reads differently from one nothing matches', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await expect(bank(page)).toContainText('No questions yet')
 
   await openBank(page)

@@ -99,7 +99,8 @@ test('the editor nests the Parts under the Multipart question, each tagged with 
 /** A new Multipart question, written through the bank's own Add Question menu. */
 async function newMultipart(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Question Bank' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Question Bank' }).click()
   await page.getByRole('button', { name: 'New question' }).click()
   await page.getByRole('menuitem', { name: 'Multipart' }).click()
   await expect(editor(page)).toBeVisible()

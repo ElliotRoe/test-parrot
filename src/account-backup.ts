@@ -8,7 +8,7 @@
 // (Media Asset bytes) is lifted out into its own entry so the JSON stays
 // readable and images are not inflated by base64.
 
-import { STORAGE_NAME, STORAGE_VERSION, EXAM_STORE } from './storage-schema'
+import { STORAGE_NAME, STORAGE_VERSION, EXAM_STORE, OLDEST_RESTORABLE_STORAGE_VERSION } from './storage-schema'
 
 export const ACCOUNT_BACKUP_FORMAT = 'test-parrot-account'
 export const ACCOUNT_BACKUP_VERSION = 1
@@ -292,8 +292,10 @@ export async function readAccountBackup(file: Blob): Promise<AccountSnapshot> {
   if (manifest.version > ACCOUNT_BACKUP_VERSION || manifest.storageVersion > STORAGE_VERSION) {
     throw new AccountBackupError('This backup was made by a newer Test Parrot. Reload the page to update, then try again.')
   }
-  if (manifest.storageVersion !== STORAGE_VERSION
-    || manifest.databases.some((database) => database.version !== STORAGE_VERSION)) {
+  // An older backup is restored as it was made, and the app's own upgrade
+  // brings it up to date the first time it opens it.
+  if (manifest.storageVersion < OLDEST_RESTORABLE_STORAGE_VERSION
+    || manifest.databases.some((database) => database.version < OLDEST_RESTORABLE_STORAGE_VERSION || database.version > STORAGE_VERSION)) {
     throw new AccountBackupError('This backup was made by an older Test Parrot whose storage this version cannot read.')
   }
   if (manifest.databases.some((database) => !isAccountDatabase(database.name))) {
