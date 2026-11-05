@@ -213,6 +213,12 @@ export function createExamWorkspaceService(options: { now?: () => Date; createId
         requestOf(transaction.objectStore(EXAM_STORE).get(id)) as Promise<ExamSummary | undefined>,
       ))
     },
+    /** The Exam's registry record: where it sits, its Star and Trash state. */
+    async summary(id: string): Promise<ExamSummary | null> {
+      return (await transact(EXAM_STORE, 'readonly', (transaction) =>
+        requestOf(transaction.objectStore(EXAM_STORE).get(id)) as Promise<ExamSummary | undefined>,
+      )) ?? null
+    },
     async activeId(): Promise<string | null> {
       return await transact(EXAM_WORKSPACE_STORE, 'readonly', async (transaction) => {
         const record = await requestOf(transaction.objectStore(EXAM_WORKSPACE_STORE).get('active')) as ActiveWorkspace | undefined

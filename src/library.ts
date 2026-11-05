@@ -192,6 +192,15 @@ export function createLibraryService({
         folders: folderMap(folders),
       }
     },
+    async folders(): Promise<Map<string, FolderRecord>> {
+      return folderMap(await readFolders())
+    },
+    /** Where one Resource or Folder sits, without reading every Exam. */
+    async placeOf(ref: EntryRef): Promise<string | null> {
+      if (ref.kind === 'folder') return (await service.folder(ref.id))?.parentId ?? null
+      if (ref.kind === 'exam') return (await workspaces.summary(ref.id))?.parentId ?? null
+      return bankWorkspaces.summaryPlace(ref.id)
+    },
     async folder(id: string): Promise<FolderRecord | null> {
       return (await transact('readonly', (store) => requestOf(store.get(id)) as Promise<FolderRecord | undefined>)) ?? null
     },

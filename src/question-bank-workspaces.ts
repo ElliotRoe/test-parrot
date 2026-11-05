@@ -859,6 +859,13 @@ export function createQuestionBankWorkspaceService(
         }
       }).sort((left, right) => right.lastUpdatedAt.localeCompare(left.lastUpdatedAt))
     },
+    /** Where the bank sits: a Folder's id, or null for the top level. */
+    async summaryPlace(id: string): Promise<string | null> {
+      return transact(QUESTION_BANK_REGISTRY_STORE, 'readonly', async (transaction) => {
+        const bank = await requestOf(transaction.objectStore(QUESTION_BANK_REGISTRY_STORE).get(id)) as StoredBank | undefined
+        return bank?.parentId ?? null
+      })
+    },
     /** Updates where the bank sits, its Star or its Trash state. A move marks
      *  it modified, as a move marks an Exam. */
     async place(id: string, change: Place, { modified = false } = {}): Promise<void> {

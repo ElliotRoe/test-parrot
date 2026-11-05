@@ -178,12 +178,10 @@ import {
 } from './paper-style'
 import { BEFORE_NAVIGATE_EVENT, navigate, replaceRoute, useLocationSearch, useRoute } from './use-route'
 import { Footer } from './site-chrome'
-import { HomePage } from './home-page'
 import { LandingPage, OnboardingPage } from './landing-page'
 import { ConvertPage } from './convert-page'
 import { hasBeenWelcomed } from './welcomed'
-import type { ExamWorkspaceService, QuestionDeletionImpact, QuestionUsage, RecentExam } from './exam-workspaces'
-import { examDeletionMessage, type ExamDeletionSummary } from './exam-deletion'
+import type { ExamWorkspaceService, QuestionUsage, RecentExam } from './exam-workspaces'
 import {
   type QuestionBankResource,
   type QuestionBankSummary,
@@ -197,13 +195,20 @@ import {
   ExportHistoryDrawer,
 } from './export-history'
 import { AppShell } from './app-shell'
+import { LibraryActionsContext, type LibraryActions, type NewKind } from './library-actions'
+import { createLibraryService, type DeletionWarning, type EntryRef, type LibraryService, type LibrarySnapshot } from './library'
+import { LibraryPage } from './library-page'
+import { draggedRefs, folderHref, folderOfRoute, libraryViewOf } from './library-routes'
+import { NameDialog, TrashDialog } from './library-dialogs'
+import { FolderPath } from './folder-path'
+import { BankPicker } from './bank-picker'
+import type { FolderRecord } from './resource-places'
+import { UNTITLED_FOLDER } from './resource-places'
 import { AboutPage, PrivacyPage } from './site-pages'
 import { SettingsPage } from './settings-page'
 import { persistentStorageStatus, requestPersistentStorage, type PersistentStorageStatus } from './durable-storage'
-import { ResourceCollectionPage } from './resource-collection-page'
 import { BankFileDropTarget } from './bank-file-drop'
 import { ImportsPage, WaitingImportPage } from './imports-page'
-import { questionBankCollection, type QuestionBankCollectionItem } from './resource-collections'
 import { QuestionBankExportDialog } from './question-bank-export-dialog'
 import { QuestionBankImportDialog } from './question-bank-import-dialog'
 import { MarginsIcon, PaperStylePreview } from './format-icons'
@@ -1156,47 +1161,6 @@ function QuestionDeletionConfirmation({ usage, onCancel, onConfirm }: {
   </DestructiveConfirmation>
 }
 
-function BankDeletionConfirmation({ bank, impact, onCancel, onConfirm }: {
-  bank: QuestionBankCollectionItem
-  impact: readonly QuestionDeletionImpact[]
-  onCancel: () => void
-  onConfirm: () => Promise<void>
-}) {
-  return <DestructiveConfirmation
-    label="Permanently delete Question Bank"
-    title={`Permanently delete “${bank.name}”?`}
-    confirmLabel="Delete Question Bank"
-    onCancel={onCancel}
-    onConfirm={onConfirm}
-  >
-    <p>This cannot be undone.</p>
-    {bank.questionCount === 0 ? <p>This empty Question Bank will be permanently deleted.</p> : <>
-      <p>{bank.questionCount} {bank.questionCount === 1 ? 'Question' : 'Questions'} will be permanently deleted.</p>
-      <p>{impact.length} affected {impact.length === 1 ? 'Exam' : 'Exams'}:</p>
-      {impact.length > 0 && <ul>{impact.map((item) => <li key={item.examId}>{item.title} — {item.questionCount} {item.questionCount === 1 ? 'Question' : 'Questions'} removed</li>)}</ul>}
-      <p><strong>Export History remains unchanged.</strong> Historical exports stay viewable and can be exported again.</p>
-    </>}
-  </DestructiveConfirmation>
-}
-
-/** Deleting an Exam takes its Export History with it (ADR-0047). */
-function ExamDeletionConfirmation({ summary, onCancel, onConfirm }: {
-  summary: ExamDeletionSummary
-  onCancel: () => void
-  onConfirm: () => Promise<void>
-}) {
-  const message = examDeletionMessage(summary)
-  return <DestructiveConfirmation
-    label="Delete Exam"
-    title={message.title}
-    confirmLabel="Delete Exam"
-    onCancel={onCancel}
-    onConfirm={onConfirm}
-  >
-    <p>{message.body}</p>
-  </DestructiveConfirmation>
-}
-
 function ResourcePicker({
   title,
   closeLabel,
@@ -1470,11 +1434,14 @@ function QuestionBankTabsPane({
   workspaceDrag,
   resourceRevision = 0,
   examsService,
+  library,
   beforeCanonicalQuestionCommit,
   onCanonicalQuestionCommitted,
   onQuestionDeleted,
 }: {
   context: BankWorkspaceContext
+  /** Folders, for the picker to browse; without it the picker lists every bank at once. */
+  library?: LibraryService
   service: QuestionBankWorkspaceService
   /** Opens the import dialog — with a file, when one was dropped on the empty
    *  pane that the page-wide drop target did not claim. */
@@ -1502,7 +1469,10 @@ function QuestionBankTabsPane({
     pane: { bankPercent: 33 },
   }))
   const [resources, setResources] = useState<Record<string, QuestionBankResource>>({})
-  const [pickerBanks, setPickerBanks] = useState<QuestionBankSummary[] | null>(null)
+  const [picker, setPicker] = useState<{ banks: QuestionBankSummary[]; folders: Map<string, FolderRecord>; startAt: string | null } | null>(null)
+  const setPickerBanks = (value: null) => setPicker(value)
+  /** The Folder this Exam sits in, where banks made or found from here start. */
+  const examFolder = async () => (await examsService?.summary(context.examId))?.parentId ?? null
   const [hydrated, setHydrated] = useState(false)
   const [message, setMessage] = useState<string | null>(null)
   const [creatingBank, setCreatingBank] = useState(false)
@@ -1545,12 +1515,19 @@ function QuestionBankTabsPane({
   const updateResource = (resource: QuestionBankResource) => {
     setResources((current) => ({ ...current, [resource.id]: resource }))
   }
-  const openPicker = async () => setPickerBanks(await service.recent())
+  const openPicker = async () => {
+    const [banks, folders, startAt] = await Promise.all([
+      service.recent(),
+      library ? library.folders() : Promise.resolve(new Map<string, FolderRecord>()),
+      examFolder(),
+    ])
+    setPicker({ banks, folders, startAt: library ? startAt : null })
+  }
   const createBank = async () => {
     setCreatingBank(true)
     setMessage(null)
     try {
-      const bank = await service.create()
+      const bank = await service.create(await examFolder())
       const opened = await service.openTab(stableContext, bank.id)
       if (!opened) throw new Error('The new Question Bank could not be opened.')
       setWorkspace(opened.workspace)
@@ -1749,13 +1726,12 @@ function QuestionBankTabsPane({
         <p className="bank-get-started-hint">Or drop a Question Bank file anywhere here.</p>
       </div>
     </div>}
-    {pickerBanks && <ResourcePicker
-      title="Open Question Bank"
-      closeLabel="Close Question Bank picker"
-      emptyMessage="No Question Banks are available on this device."
-      resources={pickerBanks}
+    {picker && <BankPicker
+      banks={picker.banks}
+      folders={picker.folders}
+      startAt={picker.startAt}
       onChoose={(id) => void chooseBank(id)}
-      onClose={() => setPickerBanks(null)}
+      onClose={() => setPicker(null)}
     />}
   </div>
 }
@@ -1807,6 +1783,7 @@ function QuestionBankPage({
   bank: initialBank,
   bankWorkspaces,
   workspaces,
+  library,
   persistentStorage,
   launchError,
   onImportInto,
@@ -1814,6 +1791,7 @@ function QuestionBankPage({
   bank: QuestionBankResource
   bankWorkspaces: QuestionBankWorkspaceService
   workspaces: ExamWorkspaceService
+  library: LibraryService
   persistentStorage: PersistentStorageStatus
   launchError: string | null
   /** Opens the import dialog with every bank in the file defaulting to
@@ -1869,8 +1847,7 @@ function QuestionBankPage({
 
   return <AppShell
     crumbs={[
-      { label: 'Home', href: '/' },
-      { label: 'Question Banks', href: '/question-banks' },
+      { label: 'Home', href: '/', folderId: null },
       { label: bank.name },
     ]}
     persistentStorage={persistentStorage}
@@ -1912,6 +1889,7 @@ function QuestionBankPage({
               <Pencil aria-hidden="true" />
             </button>
           </div>
+          <FolderPath library={library} resource={{ kind: 'bank', id: bank.id }} name={bank.name} />
           <BankPageFacts
             bank={bank}
             picturesNeeded={pendingPictures.length}
@@ -1938,7 +1916,7 @@ function QuestionBankPage({
         filter={filter}
         onFilterChange={setFilter}
         onBankChange={setBank}
-        onBankGone={() => navigate('/question-banks')}
+        onBankGone={() => navigate('/')}
         examsService={workspaces}
       />
     </div>
@@ -2018,6 +1996,7 @@ function ExamEditor({
   examId,
   bankWorkspaces,
   workspaces,
+  library,
   exams,
   onHome,
   onOpenExam,
@@ -2031,6 +2010,7 @@ function ExamEditor({
   examId: string
   bankWorkspaces: QuestionBankWorkspaceService
   workspaces: ExamWorkspaceService
+  library?: LibraryService
   exams: readonly RecentExam[]
   onHome: () => void
   onOpenExam: (id: string) => void
@@ -2546,14 +2526,17 @@ function ExamEditor({
             <img className="app-logo" src="/logo.png" alt="" width={36} height={36} />
           </button>
           <div className="document-title-stack">
-            <input
-              aria-label="Exam name"
-              className="document-title"
-              value={state.workingCopy.title}
-              disabled={isHistoricalBrowsing}
-              placeholder="Untitled Exam"
-              onChange={(event) => store.setTitle(event.target.value)}
-            />
+            <div className="document-title-row">
+              <input
+                aria-label="Exam name"
+                className="document-title"
+                value={state.workingCopy.title}
+                disabled={isHistoricalBrowsing}
+                placeholder="Untitled Exam"
+                onChange={(event) => store.setTitle(event.target.value)}
+              />
+              {library && <FolderPath library={library} resource={{ kind: 'exam', id: examId }} name={state.workingCopy.title} documentLoad />}
+            </div>
             <nav className="document-menus" aria-label="Exam menus">
               {DOCUMENT_MENUS.map((kind) => (
                 <button
@@ -2903,6 +2886,7 @@ function ExamEditor({
             workspaceDrag={drag}
             resourceRevision={bankRevision + bankLibraryRevision}
             examsService={workspaces}
+            library={library}
             beforeCanonicalQuestionCommit={() => store.whenSettled()}
             onCanonicalQuestionCommitted={(question) => store.syncCanonicalQuestions([question])}
             onQuestionDeleted={(questionId) => {
@@ -3100,6 +3084,25 @@ function ExamEditor({
   )
 }
 
+/** Where whatever the next import makes should land: the Folder the New menu
+ *  was opened in, kept across the convert page and its waiting import. */
+const IMPORT_FOLDER_KEY = 'test-parrot-import-folder'
+function rememberImportFolder(folderId: string | null) {
+  try {
+    if (folderId) window.sessionStorage.setItem(IMPORT_FOLDER_KEY, folderId)
+    else window.sessionStorage.removeItem(IMPORT_FOLDER_KEY)
+  } catch { /* the import lands at the top level */ }
+}
+function takeImportFolder(): string | null | undefined {
+  try {
+    const folderId = window.sessionStorage.getItem(IMPORT_FOLDER_KEY)
+    window.sessionStorage.removeItem(IMPORT_FOLDER_KEY)
+    return folderId ?? undefined
+  } catch {
+    return undefined
+  }
+}
+
 /**
  * The site's three pages. The editor is the app; About and Privacy are the
  * ordinary pages a public tool is expected to have, reached from the footer.
@@ -3109,6 +3112,7 @@ export default function App({
   bank,
   workspaces,
   bankWorkspaces,
+  library: givenLibrary,
   initialExams,
   initialBankCollection,
   persistentStorage,
@@ -3120,25 +3124,28 @@ export default function App({
   bank: QuestionBankResource | null
   workspaces: ExamWorkspaceService
   bankWorkspaces: QuestionBankWorkspaceService
+  library?: LibraryService
   initialExams: readonly RecentExam[]
-  initialBankCollection: readonly QuestionBankCollectionItem[]
+  initialBankCollection: readonly QuestionBankSummary[]
   persistentStorage: PersistentStorageStatus
   initialEditorId: string | null
   initialError: string | null
 }) {
   const route = useRoute()
   const search = useLocationSearch()
+  const [library] = useState(() => givenLibrary ?? createLibraryService({ workspaces, bankWorkspaces }))
   const [exams, setExams] = useState(initialExams)
   /** The bank the Question Bank page is showing and the address it was read
    *  for — at start by `main.tsx`, and after that on every arrival, so a bank
    *  edited elsewhere since is never shown as it was. */
   const [pageBank, setPageBank] = useState(() => bank ? { bank, search: window.location.search } : null)
-  const [bankCollection, setBankCollection] = useState(initialBankCollection)
+  const [bankCollection] = useState(initialBankCollection)
+  const [snapshot, setSnapshot] = useState<LibrarySnapshot | null>(null)
   const [storageStatus, setStorageStatus] = useState(persistentStorage)
   const [editorStore, setEditorStore] = useState(store)
   const [editorId, setEditorId] = useState(initialEditorId)
-  const [deletingBank, setDeletingBank] = useState<{ bank: QuestionBankCollectionItem; impact: QuestionDeletionImpact[] } | null>(null)
-  const [deletingExam, setDeletingExam] = useState<ExamDeletionSummary | null>(null)
+  const [trashing, setTrashing] = useState<{ ref: EntryRef; name: string; warning: DeletionWarning } | null>(null)
+  const [namingFolderIn, setNamingFolderIn] = useState<{ parentId: string | null } | null>(null)
   const [exportingBank, setExportingBank] = useState<QuestionBankResource | null>(null)
   const [inspectingBankFile, setInspectingBankFile] = useState(false)
   const [droppedBankFile, setDroppedBankFile] = useState<File | null>(null)
@@ -3163,6 +3170,11 @@ export default function App({
     navigate('/imports', { replace: true })
     openImport()
   }, [route, openImport])
+  // The Exams and Question Banks lists became Home's Type filter (ADR-0051).
+  useEffect(() => {
+    if (route === '/exams') replaceRoute('/?type=exams')
+    if (route === '/question-banks') replaceRoute('/?type=question-banks')
+  }, [route])
   /** A file dropped while the Import dialog is open belongs to it — an
    *  assistant's corrected file replaces the one under review — rather than
    *  starting the dialog over. */
@@ -3193,6 +3205,20 @@ export default function App({
       ...options,
       bankAnswerWidth: domMeasure.bankAnswerWidth,
     })
+    // What an import makes lands in the Folder the teacher is in (ADR-0051):
+    // the one New was opened in, the one on screen, or the open Exam's.
+    const remembered = takeImportFolder()
+    const folderId = remembered !== undefined
+      ? remembered
+      : route === '/editor' && editorId
+        ? (await workspaces.summary(editorId))?.parentId ?? null
+        : folderOfRoute(route)
+    if (folderId) {
+      await library.move([
+        ...result.createdBankIds.map((id) => ({ kind: 'bank' as const, id })),
+        ...result.createdExamIds.map((id) => ({ kind: 'exam' as const, id })),
+      ], folderId)
+    }
     // One Exam is what a converted test is: it opens in the editor with the
     // banks it was built from as its tabs, from onboarding as from anywhere.
     const [onlyExam, ...otherExams] = result.createdExamIds
@@ -3201,7 +3227,7 @@ export default function App({
       return
     }
     if (onlyExam) {
-      window.location.assign('/exams')
+      window.location.assign(folderHref(folderId))
       return
     }
     const bankIds = [...result.createdBankIds, ...result.updatedBankIds]
@@ -3220,7 +3246,7 @@ export default function App({
     // From onboarding, banks were imported in order to write an Exam from
     // them: a fresh Exam opens with them as its pane's tabs.
     if (route.startsWith('/get-started')) {
-      const exam = await workspaces.create()
+      const exam = await workspaces.create(undefined, folderId)
       for (const bankId of bankIds) await bankWorkspaces.openTab({ examId: exam.id }, bankId)
       window.location.assign(`/editor?exam=${exam.id}`)
       return
@@ -3234,19 +3260,13 @@ export default function App({
         : `Imported ${questions} into ${first?.name ?? 'the Question Bank'}.`,
     )
     window.location.assign(`/question-bank?id=${firstBankId}`)
-  }, [bankWorkspaces, closeImport, editorId, route, workspaces])
+  }, [bankWorkspaces, closeImport, editorId, library, route, workspaces])
   const picturesNeededIn = useCallback(async (bankIds: readonly string[]) => {
     const banks = await Promise.all(bankIds.map((id) => bankWorkspaces.read(id)))
     return banks.reduce((total, bank) => total + (bank ? pendingImagesOfQuestions(bank.questions).length : 0), 0)
   }, [bankWorkspaces])
-  const requestBankDeletion = useCallback((bank: QuestionBankCollectionItem) => {
-    void bankWorkspaces.read(bank.id).then(async (resource) => {
-      const impact = await workspaces.deletionImpact(resource?.questions.map(({ id }) => id) ?? [])
-      setDeletingBank({ bank, impact })
-    })
-  }, [bankWorkspaces, workspaces])
-  const requestBankExport = useCallback((bank: QuestionBankCollectionItem) => {
-    void bankWorkspaces.read(bank.id).then((resource) => {
+  const requestBankExport = useCallback((id: string) => {
+    void bankWorkspaces.read(id).then((resource) => {
       if (resource) setExportingBank(resource)
     })
   }, [bankWorkspaces])
@@ -3254,46 +3274,26 @@ export default function App({
     bank={exportingBank}
     onClose={() => setExportingBank(null)}
   />
-  const bankDeletionConfirmation = deletingBank && <BankDeletionConfirmation
-    bank={deletingBank.bank}
-    impact={deletingBank.impact}
-    onCancel={() => setDeletingBank(null)}
+  // Deleting the Exam open in the editor, or the bank open on its page, sends
+  // it to Trash like deleting it anywhere else (ADR-0051), and leaves for the
+  // Folder it was in.
+  const requestTrash = useCallback((ref: EntryRef, name: string) => {
+    void library.deletionWarning([ref]).then((warning) => setTrashing({ ref, name, warning }))
+  }, [library])
+  const trashDialog = trashing && <TrashDialog
+    name={trashing.name}
+    warning={trashing.warning}
+    onCancel={() => setTrashing(null)}
     onConfirm={async () => {
-      const bank = await bankWorkspaces.read(deletingBank.bank.id)
-      if (!bank) throw new Error('That Question Bank is unavailable on this device.')
-      await bankWorkspaces.permanentlyDeleteBank(bank.id, (ids) => workspaces.forceDeleteQuestions(ids))
-      setBankCollection((current) => current.filter(({ id }) => id !== bank.id))
-      setExams(await workspaces.recent())
-      setDeletingBank(null)
-    }}
-  />
-  // The editor names its Exam by what its title field says now, which may be
-  // ahead of the last backup.
-  const requestExamDeletion = useCallback((id: string, title?: string) => {
-    void workspaces.deletionSummary(id).then((summary) => {
-      if (summary) setDeletingExam(title === undefined ? summary : { ...summary, title })
-    })
-  }, [workspaces])
-  const examDeletionConfirmation = deletingExam && <ExamDeletionConfirmation
-    summary={deletingExam}
-    onCancel={() => setDeletingExam(null)}
-    onConfirm={async () => {
-      const { examId } = deletingExam
-      const open = examId === editorId
-      // A backup still on its way must land before the database goes, not
-      // after, where it would find the Exam gone.
+      const { ref } = trashing
+      const open = ref.kind === 'exam' && ref.id === editorId
+      // A backup still on its way must land before the Exam goes.
       if (open && editorStore) await editorStore.whenSettled().catch(() => undefined)
-      await workspaces.deleteExam(examId)
-      // An Exam deleted from its own editor leaves it for Home.
-      if (open) {
-        window.location.assign('/')
-        return
-      }
-      setDeletingExam(null)
-      const [recent, recentBanks] = await Promise.all([workspaces.recent(), bankWorkspaces.recent()])
-      setExams(recent)
-      // Its banks are used in one Exam fewer.
-      setBankCollection(await questionBankCollection(recentBanks, bankWorkspaces, workspaces))
+      const parentId = ref.kind === 'exam'
+        ? (await workspaces.summary(ref.id))?.parentId ?? null
+        : (await bankWorkspaces.recent()).find((candidate) => candidate.id === ref.id)?.parentId ?? null
+      await library.trash([ref])
+      window.location.assign(folderHref(parentId))
     }}
   />
   const saveAs = useCallback(async () => {
@@ -3319,43 +3319,81 @@ export default function App({
     }))
     setEditorId(targetId)
   }, [editorStore, workspaces])
-  // Home and both collections read the account afresh each time they are
-  // shown: moving between them and a Question Bank page loads no document, so
-  // what they were handed at start is out of date once a bank is edited. Only
-  // Home sweeps away untouched placeholders, as it always has; reading is all
-  // the collections do.
+  /** Make a copy, from Home: Save As, without opening the copy. The copy
+   *  takes the Working Copy, lands beside the original, and the original goes
+   *  back to its last saved state. */
+  const copyExam = useCallback(async (id: string) => {
+    const backend = workspaces.backendFor(id)
+    const source = await loadExamStore(backend, undefined, domMeasure.bankAnswerWidth)
+    await source.saveAs(async (snapshot) => { await workspaces.saveAs(id, snapshot, { activate: false }) })
+    await source.whenSettled().catch(() => undefined)
+    await backend.close()
+  }, [workspaces])
+  const libraryView = libraryViewOf(route, search)
+  const onLibrary = libraryView !== null
+  const refreshLibrary = useCallback(async () => {
+    const [next, currentStorageStatus] = await Promise.all([library.snapshot(), persistentStorageStatus()])
+    setSnapshot(next)
+    setStorageStatus(currentStorageStatus)
+    setExams(next.entries.flatMap((entry) => (entry.kind === 'exam' && !library.inTrash(entry, next.folders) ? [entry.exam] : [])))
+  }, [library])
+  // The Library reads the account afresh each time a page of it is shown:
+  // moving between it and a Question Bank page loads no document, so what it
+  // had is out of date once a bank is edited. It also sweeps away untouched
+  // Untitled placeholders, without passing them through Trash.
   useEffect(() => {
-    if (route !== '/' && route !== '/exams' && route !== '/question-banks') return
+    if (!onLibrary) return
     let current = true
     void (async () => {
-      if (route === '/') {
-        await workspaces.cleanupPristine({ includeActive: true })
-        await bankWorkspaces.cleanupPristine({ includeActive: true })
-      }
-      const [recent, recentBanks] = await Promise.all([
-        workspaces.recent(),
-        bankWorkspaces.recent(),
-      ])
-      const [collection, currentStorageStatus] = await Promise.all([
-        questionBankCollection(recentBanks, bankWorkspaces, workspaces),
-        persistentStorageStatus(),
-      ])
+      await workspaces.cleanupPristine({ includeActive: true })
+      await bankWorkspaces.cleanupPristine({ includeActive: true })
+      const [next, currentStorageStatus] = await Promise.all([library.snapshot(), persistentStorageStatus()])
       if (current) {
-        setExams(recent)
-        setBankCollection(collection)
+        setSnapshot(next)
         setStorageStatus(currentStorageStatus)
       }
     })()
     return () => { current = false }
-  }, [route, workspaces, bankWorkspaces])
+  }, [onLibrary, route, workspaces, bankWorkspaces, library])
   // The editor is entered and left by loading a document, as `main.tsx`
   // expects: it reads the Exam from storage afresh, and the browser's own
   // leave-page guard stands between the teacher and an unsaved Working Copy.
   // The Question Bank Pop-over closes with that load (ADR-0030).
   const openExam = (id: string) => window.location.assign(`/editor?exam=${id}`)
   const openBank = useCallback((id: string) => navigate(`/question-bank?id=${id}`), [])
-  const newExam = () => { void workspaces.create().then((exam) => openExam(exam.id)) }
-  const newBank = () => { void bankWorkspaces.create().then((bank) => openBank(bank.id)) }
+  const newExam = (folderId: string | null = null) => { void workspaces.create(undefined, folderId).then((exam) => openExam(exam.id)) }
+  const newBank = (folderId: string | null = null) => { void bankWorkspaces.create(folderId).then((bank) => openBank(bank.id)) }
+  const libraryActions: LibraryActions = {
+    onNew: (kind: NewKind, folderId: string | null) => {
+      if (kind === 'folder') setNamingFolderIn({ parentId: folderId })
+      else if (kind === 'exam') newExam(folderId)
+      else if (kind === 'bank') newBank(folderId)
+      else if (kind === 'import') {
+        rememberImportFolder(folderId)
+        openImport()
+      } else {
+        rememberImportFolder(folderId)
+        navigate('/get-started/convert')
+      }
+    },
+    onDropInto: (folderId, event) => {
+      const refs = draggedRefs(event)
+      if (refs.length > 0) void library.move(refs, folderId).then(refreshLibrary)
+    },
+  }
+  const newFolderDialog = namingFolderIn && <NameDialog
+    title="New folder"
+    label="Folder name"
+    initial={UNTITLED_FOLDER}
+    confirmLabel="Create"
+    onCancel={() => setNamingFolderIn(null)}
+    onConfirm={async (name) => {
+      await library.createFolder(name, namingFolderIn.parentId)
+      setNamingFolderIn(null)
+      if (onLibrary) await refreshLibrary()
+      else navigate(folderHref(namingFolderIn.parentId))
+    }}
+  />
   const onBankPage = route === '/question-bank'
   const pageBankReady = onBankPage && pageBank?.search === search
   useEffect(() => {
@@ -3373,7 +3411,7 @@ export default function App({
         return
       }
       setHomeError('That Question Bank is unavailable on this device.')
-      replaceRoute('/question-banks')
+      replaceRoute('/')
     })
     return () => { current = false }
   }, [bankWorkspaces, onBankPage, pageBankReady, search])
@@ -3398,114 +3436,97 @@ export default function App({
   const globalChrome = <>
     <BankFileDropTarget onFile={dropping(openImport)} />
     {importDialog}
+    {newFolderDialog}
   </>
-  if (route === '/imports' || route === '/imports/new') return <>{globalChrome}<ImportsPage
-    onImport={() => openImport()}
-    persistentStorage={storageStatus}
-    revision={importRevision}
-    picturesNeededIn={picturesNeededIn}
-  /></>
-  if (route === '/import') {
-    const waitingId = new URLSearchParams(window.location.search).get('id') ?? ''
-    // A file dropped on a waiting import's page is the AI's answer to it.
-    return <>
-      <BankFileDropTarget onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
+  const page = (() => {
+    if (route === '/imports' || route === '/imports/new') return <>{globalChrome}<ImportsPage
+      onImport={() => openImport()}
+      persistentStorage={storageStatus}
+      revision={importRevision}
+      picturesNeededIn={picturesNeededIn}
+    /></>
+    if (route === '/import') {
+      const waitingId = new URLSearchParams(window.location.search).get('id') ?? ''
+      // A file dropped on a waiting import's page is the AI's answer to it.
+      return <>
+        <BankFileDropTarget onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
+        {importDialog}
+        <WaitingImportPage
+          id={waitingId}
+          persistentStorage={storageStatus}
+          revision={importRevision}
+          dropped={convertDrop}
+          onReturnedFile={(file) => openImport(file, null, waitingId)}
+        />
+      </>
+    }
+    if (route === '/about') return <>{globalChrome}<AboutPage persistentStorage={storageStatus} /></>
+    if (route === '/privacy') return <>{globalChrome}<PrivacyPage persistentStorage={storageStatus} /></>
+    if (route === '/settings') return <>{globalChrome}<SettingsPage persistentStorage={storageStatus} /></>
+    // A device that has never been here gets the front door instead of empty
+    // shelves; the same page stays reachable at /welcome afterwards.
+    const firstVisit = exams.length === 0 && bankCollection.length === 0 && !hasBeenWelcomed()
+    if (route === '/welcome' || (route === '/' && firstVisit)) return <>{globalChrome}<LandingPage returning={!firstVisit} /></>
+    if (route === '/get-started') return <>{globalChrome}<OnboardingPage onNewBank={() => newBank()} onNewExam={() => newExam()} /></>
+    // Its last step is "drop the file anywhere", which the page-wide drop
+    // target in the global chrome already is.
+    // Converting starts from the test itself, so on the convert page a drop is
+    // the page's to read: only a Test Parrot file goes straight to the import.
+    if (route === '/get-started/convert') return <>
+      <BankFileDropTarget tests onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
       {importDialog}
-      <WaitingImportPage
-        id={waitingId}
-        persistentStorage={storageStatus}
-        revision={importRevision}
-        dropped={convertDrop}
-        onReturnedFile={(file) => openImport(file, null, waitingId)}
-      />
+      <ConvertPage dropped={convertDrop} onOpenImport={(file, waitingImportId) => openImport(file, null, waitingImportId)} />
     </>
-  }
-  if (route === '/about') return <>{globalChrome}<AboutPage persistentStorage={storageStatus} /></>
-  if (route === '/privacy') return <>{globalChrome}<PrivacyPage persistentStorage={storageStatus} /></>
-  if (route === '/settings') return <>{globalChrome}<SettingsPage persistentStorage={storageStatus} /></>
-  if (route === '/exams') return <>{globalChrome}<ResourceCollectionPage
-    kind="exams"
-    exams={exams}
-    banks={bankCollection}
-    persistentStorage={storageStatus}
-    onOpenExam={openExam}
-    onOpenBank={openBank}
-    onNewExam={newExam}
-    onDeleteExam={(exam) => requestExamDeletion(exam.id)}
-  />{bankDeletionConfirmation}{examDeletionConfirmation}</>
-  if (route === '/question-banks') return <>{globalChrome}<ResourceCollectionPage
-    kind="question-banks"
-    exams={exams}
-    banks={bankCollection}
-    persistentStorage={storageStatus}
-    onOpenExam={openExam}
-    onOpenBank={openBank}
-    onNewBank={newBank}
-    onExportBank={requestBankExport}
-    onDeleteBank={requestBankDeletion}
-    onImportBank={() => openImport()}
-  />{bankExportDialog}{bankDeletionConfirmation}</>
-  // A device that has never been here gets the front door instead of empty
-  // shelves; the same page stays reachable at /welcome afterwards.
-  const firstVisit = exams.length === 0 && bankCollection.length === 0 && !hasBeenWelcomed()
-  if (route === '/welcome' || (route === '/' && firstVisit)) return <>{globalChrome}<LandingPage returning={!firstVisit} /></>
-  if (route === '/get-started') return <>{globalChrome}<OnboardingPage onNewBank={newBank} onNewExam={newExam} /></>
-  // Its last step is "drop the file anywhere", which the page-wide drop
-  // target in the global chrome already is.
-  // Converting starts from the test itself, so on the convert page a drop is
-  // the page's to read: only a Test Parrot file goes straight to the import.
-  if (route === '/get-started/convert') return <>
-    <BankFileDropTarget tests onFile={dropping((file) => setConvertDrop({ file, id: Date.now() }))} />
-    {importDialog}
-    <ConvertPage dropped={convertDrop} onOpenImport={(file, waitingImportId) => openImport(file, null, waitingImportId)} />
-  </>
-  if (route === '/') return <>{globalChrome}<HomePage
-    exams={exams}
-    banks={bankCollection}
-    error={homeError}
-    persistentStorage={storageStatus}
-    onNewExam={newExam}
-    onOpen={openExam}
-    onNewBank={newBank}
-    onOpenBank={openBank}
-    onExportBank={requestBankExport}
-    onDeleteBank={requestBankDeletion}
-    onDeleteExam={(exam) => requestExamDeletion(exam.id)}
-    onImport={() => openImport()}
-  />{bankExportDialog}{bankDeletionConfirmation}{examDeletionConfirmation}</>
-  if (route === '/question-bank') return pageBank && pageBankReady ? <>{globalChrome}<QuestionBankPage
-    key={pageBank.bank.id}
-    bank={pageBank.bank}
-    bankWorkspaces={bankWorkspaces}
-    workspaces={workspaces}
-    persistentStorage={storageStatus}
-    // What went wrong at start belongs to the bank the app started on.
-    launchError={pageBank.bank === bank ? initialError : null}
-    onImportInto={(bankId) => openImport(null, bankId)}
-  /></> : globalChrome
-  return editorStore && editorId ? <>{globalChrome}<ExamEditor
-    store={editorStore}
-    examId={editorId}
-    bankWorkspaces={bankWorkspaces}
-    workspaces={workspaces}
-    exams={exams}
-    launchError={initialError}
-    bankLibraryRevision={bankLibraryRevision}
-    onImportBank={(file) => openImport(file)}
-    onSaveAs={saveAs}
-    onDelete={() => requestExamDeletion(editorId, editorStore.getState().workingCopy.title)}
-    onOpenExam={(id) => {
-      void (async () => {
-        await bankWorkspaces.carryWorkspace({ examId: editorId }, { examId: id })
-        if (!await workspaces.open(id)) return
-        setEditorStore(await loadExamStore(workspaces.backendFor(id), undefined, domMeasure.bankAnswerWidth))
-        setEditorId(id)
-      })()
-    }}
-    onHome={() => {
-    void workspaces.activeId().then(async (id) => {
-      if (id) await workspaces.removePristine(id)
-      window.location.assign('/')
-    })
-  }} />{examDeletionConfirmation}</> : globalChrome
+    if (libraryView) return <>{globalChrome}<LibraryPage
+      view={libraryView}
+      snapshot={snapshot}
+      library={library}
+      persistentStorage={storageStatus}
+      error={homeError}
+      onChanged={refreshLibrary}
+      onOpenExam={openExam}
+      onOpenBank={openBank}
+      onExportBank={requestBankExport}
+      onCopyExam={copyExam}
+    />{bankExportDialog}</>
+    if (route === '/question-bank') return pageBank && pageBankReady ? <>{globalChrome}<QuestionBankPage
+      key={pageBank.bank.id}
+      bank={pageBank.bank}
+      bankWorkspaces={bankWorkspaces}
+      workspaces={workspaces}
+      library={library}
+      persistentStorage={storageStatus}
+      // What went wrong at start belongs to the bank the app started on.
+      launchError={pageBank.bank === bank ? initialError : null}
+      onImportInto={(bankId) => openImport(null, bankId)}
+    />{trashDialog}</> : globalChrome
+    return editorStore && editorId ? <>{globalChrome}<ExamEditor
+      store={editorStore}
+      examId={editorId}
+      bankWorkspaces={bankWorkspaces}
+      workspaces={workspaces}
+      library={library}
+      exams={exams}
+      launchError={initialError}
+      bankLibraryRevision={bankLibraryRevision}
+      onImportBank={(file) => openImport(file)}
+      onSaveAs={saveAs}
+      onDelete={() => requestTrash({ kind: 'exam', id: editorId }, editorStore.getState().workingCopy.title)}
+      onOpenExam={(id) => {
+        void (async () => {
+          await bankWorkspaces.carryWorkspace({ examId: editorId }, { examId: id })
+          if (!await workspaces.open(id)) return
+          setEditorStore(await loadExamStore(workspaces.backendFor(id), undefined, domMeasure.bankAnswerWidth))
+          setEditorId(id)
+        })()
+      }}
+      onHome={() => {
+      void workspaces.activeId().then(async (id) => {
+        if (id) await workspaces.removePristine(id)
+        window.location.assign('/')
+      })
+    }} />{trashDialog}</> : globalChrome
+  })()
+  return <LibraryActionsContext.Provider value={libraryActions}>{page}</LibraryActionsContext.Provider>
 }
+

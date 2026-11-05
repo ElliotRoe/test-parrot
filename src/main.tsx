@@ -10,7 +10,7 @@ import {
   type QuestionBankResource,
 } from './question-bank-workspaces'
 import { persistentStorageStatus } from './durable-storage'
-import { questionBankCollection } from './resource-collections'
+import { createLibraryService } from './library'
 import { applyStagedRestore } from './account-backup'
 import { expireWaitingImports } from './import-history'
 import { PopOverProvider } from './question-bank-pop-over'
@@ -31,6 +31,10 @@ async function start() {
   void expireWaitingImports().catch(() => undefined)
   const workspaces = createExamWorkspaceService()
   const bankWorkspaces = createQuestionBankWorkspaceService()
+  const library = createLibraryService({ workspaces, bankWorkspaces })
+  // Whatever has been in Trash for 30 days is deleted for good, the next time
+  // the app is open (ADR-0051).
+  await library.expireTrash().catch((reason) => console.error('Could not empty expired Trash', reason))
   const startingOnEditor = window.location.pathname === '/editor'
   // Home has no workspace to restore, so it also clears an active placeholder
   // that was abandoned by closing or leaving the editor. A bare editor reload
@@ -54,7 +58,7 @@ async function start() {
     bank = id ? await bankWorkspaces.open(id) : null
     if (!bank) {
       error = 'That Question Bank is unavailable on this device.'
-      window.history.replaceState(null, '', '/question-banks')
+      window.history.replaceState(null, '', '/')
     }
   } else if (startingOnEditor) {
     const launchId = parameters.get('exam')
@@ -81,12 +85,14 @@ async function start() {
     }
   }
 
-  const [exams, banks, storageStatus] = await Promise.all([
-    workspaces.recent(),
-    bankWorkspaces.recent(),
+  const [{ entries, folders }, storageStatus] = await Promise.all([
+    library.snapshot(),
     persistentStorageStatus(),
   ])
-  const collection = await questionBankCollection(banks, bankWorkspaces, workspaces)
-  createRoot(document.getElementById('root')!).render(<StrictMode><MilkdownProvider><PopOverProvider service={bankWorkspaces}><App store={store} bank={bank} workspaces={workspaces} bankWorkspaces={bankWorkspaces} initialExams={exams} initialBankCollection={collection} persistentStorage={storageStatus} initialEditorId={editorId} initialError={error} /></PopOverProvider></MilkdownProvider></StrictMode>)
+  // Nothing in Trash is offered anywhere but Trash.
+  const live = entries.filter((entry) => !library.inTrash(entry, folders))
+  const exams = live.flatMap((entry) => (entry.kind === 'exam' ? [entry.exam] : []))
+  const collection = live.flatMap((entry) => (entry.kind === 'bank' ? [entry.bank] : []))
+  createRoot(document.getElementById('root')!).render(<StrictMode><MilkdownProvider><PopOverProvider service={bankWorkspaces}><App store={store} bank={bank} workspaces={workspaces} bankWorkspaces={bankWorkspaces} library={library} initialExams={exams} initialBankCollection={collection} persistentStorage={storageStatus} initialEditorId={editorId} initialError={error} /></PopOverProvider></MilkdownProvider></StrictMode>)
 }
 void start()
