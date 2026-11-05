@@ -654,13 +654,12 @@ button { cursor: pointer; }
 .question-bank-no-tab[data-over] { border-color: var(--paper-accent); }
 .bank-get-started {
   flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center;
-  margin: 0; padding: 24px 22px; border: 1px dashed #cdb9a6; border-radius: 10px; background-color: transparent;
+  margin: 0; padding: 24px 6px; border-radius: 10px; background-color: transparent;
   overflow: hidden;
-  transition: border-color .12s ease, background-color .12s ease;
+  transition: background-color .12s ease;
 }
-.question-bank-no-tab[data-over] .bank-get-started {
-  border-color: var(--paper-accent); background-color: var(--paper-accent-wash);
-}
+/* A file held over the pane: the ground it would drop on lights up. */
+.question-bank-no-tab[data-over] .bank-get-started { background-color: var(--paper-accent-wash); }
 .bank-get-started-title {
   margin: 0 0 10px; color: #6e5b4d; font-size: 13px; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase;
