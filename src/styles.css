@@ -402,6 +402,12 @@ button { cursor: pointer; }
    lines hang off a guide rule, and the line in view is marked on that rule,
    as a document outline does. */
 .exam-scroll-row { display: flex; min-height: 100%; }
+/* With the outline closed, its rail on the left is matched by as much room
+   on the right, so the sheet sits in the middle of the lane. It gives way
+   as the outline opens, at the rail's own pace. */
+.exam-scroll-row::after { content: ''; flex: none; width: 76px; transition: width 220ms ease; }
+.exam-body[data-outline-open] .exam-scroll-row::after { width: 0; }
+@media (prefers-reduced-motion: reduce) { .exam-scroll-row::after { transition: none; } }
 /* Sticky down the lane, so it stays put as the pages scroll by, but in the
    same row as them, so it scrolls away sideways with them. */
 .exam-outline-rail {
@@ -2363,6 +2369,7 @@ body.margins-guides .exam-page::after {
     transform: translateX(105%); transition: transform 220ms ease, visibility 0s 220ms;
   }
   .exam-outline-rail, .exam-outline-rail[data-open] { width: 76px; overflow: visible; }
+  .exam-scroll-row::after { width: 0; }
   .exam-outline-pane {
     position: fixed; z-index: 60; top: var(--editor-bar-height); left: 0; bottom: 0; width: min(300px, 88vw);
     height: auto; background: var(--app-ground);
