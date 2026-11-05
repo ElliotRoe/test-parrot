@@ -1137,13 +1137,14 @@ function drawItem(context: DrawContext, item: PageItem): void {
   }
 }
 
-/** An Answer Key line's `[n]`, just past its blank at `x`, on the line that
- *  starts at `rowY`; the line has already been drawn, so it moves nothing. */
-function drawAnswerKeyPoints(context: DrawContext, points: number | undefined, x: number, rowY: number): void {
+/** An Answer Key line's `[n]`, against the right margin under the paper's
+ *  total, on the line that starts at `rowY`; the line has already been drawn,
+ *  so it moves nothing. */
+function drawAnswerKeyPoints(context: DrawContext, points: number | undefined, rowY: number): void {
   if (points === undefined) return
   const text = answerKeyPointsText(points)
   context.page.drawText(text, {
-    x,
+    x: context.x + context.width - context.fonts.regular.widthOfTextAtSize(text, BODY_SIZE),
     y: rowY - BODY_SIZE,
     font: context.fonts.regular,
     size: BODY_SIZE,
@@ -1156,11 +1157,12 @@ function drawAnswerKeyEntry(context: DrawContext, item: AnswerKeyEntryItem): voi
     ...(item.difficulty ? [DIFFICULTY_LABELS[item.difficulty]] : []),
     ...(item.topics ?? []),
   ]
-  // An entry's `[n]`, when it has Points, follows its blank, and its tags follow that.
+  // Its tags follow its blank; its `[n]`, when it has Points, keeps the right
+  // margin, so the tags stop short of it.
   const pointsWidth = item.points === undefined
     ? 0
-    : context.fonts.regular.widthOfTextAtSize(answerKeyPointsText(item.points), BODY_SIZE) + 6
-  const tagStart = context.x + 88 + pointsWidth
+    : context.fonts.regular.widthOfTextAtSize(answerKeyPointsText(item.points), BODY_SIZE) + 8
+  const tagStart = context.x + 88
   const tagWidth = context.width - 88 - pointsWidth
   const gap = 5
   const padding = 5
@@ -1188,7 +1190,6 @@ function drawAnswerKeyEntry(context: DrawContext, item: AnswerKeyEntryItem): voi
   context.y = rowY
   if (item.letter) drawTextLine(context, item.letter, { font: 'bold', x: context.x + ANSWER_KEY_ANSWER_X, width: 42 })
   else context.y -= BODY_LINE
-  drawAnswerKeyPoints(context, item.points, context.x + 84, rowY)
   context.page.drawLine({
     start: { x: context.x + 36, y: rowY - BODY_LINE + 3 },
     end: { x: context.x + 78, y: rowY - BODY_LINE + 3 },
@@ -1215,6 +1216,7 @@ function drawAnswerKeyEntry(context: DrawContext, item: AnswerKeyEntryItem): voi
       color: INK,
     })
   }
+  drawAnswerKeyPoints(context, item.points, rowY)
   context.y = rowY - lines * BODY_LINE - 2
   // A Suggested Answer starts under the blank, below the whole row.
   if (item.suggestedAnswer) {
@@ -1237,7 +1239,7 @@ function drawAnswerKeyEntry(context: DrawContext, item: AnswerKeyEntryItem): voi
     context.y = partY
     if (part.answer) drawTextLine(context, part.answer, { font: 'bold', x: partX + label + 6, width: 42 })
     else context.y -= BODY_LINE
-    drawAnswerKeyPoints(context, part.points, partX + label + 52, partY)
+    drawAnswerKeyPoints(context, part.points, partY)
     context.page.drawLine({
       start: { x: partX + label + 4, y: partY - BODY_LINE + 3 },
       end: { x: partX + label + 46, y: partY - BODY_LINE + 3 },

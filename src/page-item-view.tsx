@@ -560,13 +560,14 @@ export function AnswerKeyEntry({ item }: { item: AnswerKeyEntryItem }) {
       <span className="answer-key-answer" aria-label={item.letter ?? 'Blank answer'}>
         {item.letter}
       </span>
-      <AnswerKeyPoints points={item.points} />
       {(item.difficulty || (item.topics?.length ?? 0) > 0) && (
         <span className="answer-key-metadata" aria-label="Question Metadata">
           {item.difficulty && <DifficultyBadge difficulty={item.difficulty} />}
           {(item.topics ?? []).map((topic) => <TopicBadge topic={topic} key={topic} />)}
         </span>
       )}
+      {/* Last, against the right margin, under the paper's total. */}
+      <AnswerKeyPoints points={item.points} />
       {item.suggestedAnswer && (
         <DocView className="answer-key-suggested" content={item.suggestedAnswer} />
       )}

@@ -1079,13 +1079,13 @@ button { cursor: pointer; }
 .answer-key-points { white-space: nowrap; }
 .answer-key-section { margin: 0 0 10px; font: 700 17px/1.2 Georgia, serif; }
 .answer-key-entry {
-  display: grid; grid-template-columns: 42px 56px minmax(0, 1fr);
+  display: grid; grid-template-columns: 42px 56px minmax(0, 1fr) auto;
   align-items: center; gap: 8px; margin: 0 0 8px;
 }
-/* An entry's `[n]`, when it has Points, follows its blank, before any
-   Question Metadata. After the rule above, which it narrows: before it, it
-   lost, and the tags wrapped under the number and were cut off there. */
-.answer-key-entry--pointed { grid-template-columns: 42px 56px auto minmax(0, 1fr); }
+/* Its number, its answer, its Question Metadata, and — when it has Points —
+   its `[n]` against the right margin, in a column under the paper's total. */
+.answer-key-metadata { grid-column: 3; }
+.answer-key-points { grid-column: 4; justify-self: end; }
 .answer-key-answer { min-height: 1.3em; border-bottom: 1px solid #332a24; text-align: center; }
 /* A Suggested Answer takes the lines under its entry, starting under the
    blank. The PDF and DOCX adapters indent it by the same 50px. */
@@ -1096,14 +1096,14 @@ button { cursor: pointer; }
    letter where a question's number goes and the answer on the blank beside it. */
 .answer-key-parts { grid-column: 1 / -1; display: grid; gap: 6px; padding-left: 50px; }
 .answer-key-part {
-  display: grid; grid-template-columns: 24px 56px minmax(0, 1fr);
+  display: grid; grid-template-columns: 24px 56px minmax(0, 1fr) auto;
   align-items: center; gap: 8px;
 }
 .answer-key-part .answer-key-suggested { grid-column: 3 / -1; }
 /* A Subpart's line is labelled with its place under its Part, `b (iii)`, so
    an entry with any takes a wider label column for every line, keeping its
    blanks in one column. The PDF adapter widens its own by the same 56px. */
-.answer-key-parts--subparts .answer-key-part { grid-template-columns: 56px 56px minmax(0, 1fr); }
+.answer-key-parts--subparts .answer-key-part { grid-template-columns: 56px 56px minmax(0, 1fr) auto; }
 .answer-key-metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-width: 0; }
 .answer-key-metadata .badge { padding: 0 7px; font: 11px/1.55 Arial, Helvetica, sans-serif; }
 .answer-key-metadata .badge svg { width: 11px; height: 11px; }

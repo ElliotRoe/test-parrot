@@ -1285,9 +1285,17 @@ function answerKeySection(item: AnswerKeySectionItem): Paragraph {
   })
 }
 
-/** An Answer Key line's `[n]`, after its answer, when it has points. */
+/** An Answer Key line's `[n]`, when it has points: last on the line, set
+ *  against the right margin by the line's right tab, under the paper's total. */
 function pointsRuns(points: number | undefined): TextRun[] {
-  return points === undefined ? [] : [new TextRun({ text: ` ${answerKeyPointsText(points)}` })]
+  return points === undefined ? [] : [new TextRun({ children: [new Tab(), ` ${answerKeyPointsText(points)}`] })]
+}
+
+/** The right tab an Answer Key line's `[n]` is set against. */
+function pointsTab(points: number | undefined, build: BuildContext) {
+  return points === undefined
+    ? {}
+    : { tabStops: [{ type: TabStopType.RIGHT, position: twips(build.contentWidth) }] }
 }
 
 function answerKeyEntry(item: AnswerKeyEntryItem, build: BuildContext): (Paragraph | Table)[] {
@@ -1296,15 +1304,16 @@ function answerKeyEntry(item: AnswerKeyEntryItem, build: BuildContext): (Paragra
     ...(item.topics ?? []).map((topic) => ({ label: topic, fill: 'F2E6D8' })),
   ]
   const entry = new Paragraph({
+    ...pointsTab(item.points, build),
     children: [
       new TextRun({ text: `${item.number}. ` }),
       // A free-response question still takes a line, so the key's numbering
       // matches the paper's; it simply has no letter to print.
       ...(item.letter ? [new TextRun({ text: item.letter, bold: true })] : []),
-      ...pointsRuns(item.points),
       ...metadata.map(({ label, fill }) =>
         new TextRun({ text: ` ${label} `, size: 18, shading: { fill } }),
       ),
+      ...pointsRuns(item.points),
     ],
   })
   // A Suggested Answer starts under the blank, on the lines below the entry.
@@ -1316,6 +1325,7 @@ function answerKeyEntry(item: AnswerKeyEntryItem, build: BuildContext): (Paragra
   const parts = (item.parts ?? []).flatMap((part) => [
     new Paragraph({
       indent: { left: ANSWER_KEY_ANSWER_INDENT },
+      ...pointsTab(part.points, build),
       children: [
         new TextRun({ text: `${part.letter}. ` }),
         ...(part.answer ? [new TextRun({ text: part.answer, bold: true })] : []),
