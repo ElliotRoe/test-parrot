@@ -44,7 +44,7 @@ async function newExam(page: Page) {
 }
 
 async function openBankTab(page: Page, name: RegExp) {
-  await page.getByRole('button', { name: 'Open Question Bank' }).click()
+  await page.getByRole('button', { name: 'Open Question Bank' }).first().click()
   await page.getByRole('dialog', { name: 'Open Question Bank' }).getByRole('button', { name }).click()
 }
 
@@ -86,7 +86,7 @@ test('an Exam with no bank tabs offers opening or creating a Question Bank', asy
   await seedBanks(page)
   await newExam(page)
 
-  await expect(page.getByRole('button', { name: 'Open Question Bank' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open Question Bank' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Create new Question Bank' })).toBeVisible()
   await page.getByRole('button', { name: 'Create new Question Bank' }).click()
 
@@ -185,7 +185,7 @@ test('opening and closing bank tabs does not touch the Exam', async ({ page }) =
   await expect(page.getByRole('tab', { name: 'Biology' })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('button', { name: 'Close Biology' }).click()
   await expect(page.getByRole('tab')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Open Question Bank' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open Question Bank' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Create new Question Bank' })).toBeVisible()
   await expect(page.getByText('Drag or add a Question from an open Question Bank')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
@@ -265,7 +265,7 @@ test('an Exam can browse bank tabs without changing its saved state or Undo', as
   await expect(page.getByLabel('Export Preview')).not.toContainText('Describe mitosis.')
   await page.getByRole('dialog', { name: 'Export' }).getByRole('button', { name: 'Cancel' }).click()
 
-  await page.getByRole('button', { name: 'Open Question Bank' }).click()
+  await page.getByRole('button', { name: 'Open Question Bank' }).first().click()
   const picker = page.getByRole('dialog', { name: 'Open Question Bank' })
   await expect(picker).toContainText('Biology')
   await picker.getByRole('button', { name: /Biology/ }).click()

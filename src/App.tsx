@@ -1681,14 +1681,16 @@ function QuestionBankTabsPane({
       {/* Where Chrome keeps it: a plus at the end of the strip, next to the
           tab that was opened last. With no tabs, the empty state below offers
           the same action with a full label instead. */}
-      {workspace.openBankIds.length > 0 && <button
+      {/* Always there, under the pane's name: with no bank open it is the
+          same action as Get Started's first, kept where it always is. */}
+      <button
         type="button"
         className="open-bank-button"
         aria-label="Open Question Bank"
         title="Open Question Bank"
         disabled={!hydrated}
         onClick={() => void openPicker()}
-      ><Plus aria-hidden="true" /><span aria-hidden="true">Bank</span></button>}
+      ><Plus aria-hidden="true" /><span aria-hidden="true">Bank</span></button>
     </div>
     </header>
     {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}

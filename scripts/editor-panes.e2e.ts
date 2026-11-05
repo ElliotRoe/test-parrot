@@ -81,7 +81,7 @@ async function openWorkspace(
   })
   await expect(page.locator(EXAM_QUESTION)).toHaveCount(questionIds.length)
   if (await page.getByRole('button', { name: 'Show Question Bank' }).isVisible()) return
-  await bankPane(page).getByRole('button', { name: 'Open Question Bank' }).click()
+  await bankPane(page).getByRole('button', { name: 'Open Question Bank' }).first().click()
   await page.getByRole('dialog', { name: 'Open Question Bank' }).getByRole('button', { name: /Biology/ }).click()
   await expect(bank(page)).toBeVisible()
 }
