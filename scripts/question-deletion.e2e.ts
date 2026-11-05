@@ -141,18 +141,19 @@ test("failed deletion leaves canonical and visible state unchanged", async ({ pa
   await expect(page.getByRole("region", { name: "Question Bank" }).getByText("Shared cell question")).toBeVisible();
   await page.reload();
   await expect(page.getByRole("region", { name: "Question Bank" }).getByText("Shared cell question")).toBeVisible();
-  await page.getByRole("button", { name: "Test Parrot home" }).click();
-  await page.getByRole("button", { name: /^Open Biology final/ }).click();
+  await page.getByRole("link", { name: "Test Parrot", exact: true }).click();
+  await page.getByRole("button", { name: "Biology final", exact: true }).click();
   await expect(page.locator(".exam-question")).toContainText("Shared cell question");
 });
 
 test("a named bank remains after its final Question is deleted", async ({ page }) => {
   await page.goto("/");
-  await page.getByRole("button", { name: "New Question Bank" }).first().click();
+  await page.getByRole("button", { name: "New", exact: true }).click();
+  await page.getByRole("menuitem", { name: "New Question Bank" }).click();
   const name = page.getByRole("textbox", { name: "Question Bank name" });
   await name.fill("Keep Biology");
   await name.press("Enter");
-  await page.getByRole("button", { name: "Add Question" }).click();
+  await page.getByRole("button", { name: "New question" }).click();
   await page.getByRole("menuitem", { name: "Short answer" }).click();
   await page.keyboard.type("Only question");
   await page.keyboard.press("Control+Enter");

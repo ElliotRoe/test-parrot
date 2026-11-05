@@ -81,7 +81,7 @@ async function openWorkspace(
   })
   await expect(page.locator(EXAM_QUESTION)).toHaveCount(questionIds.length)
   if (await page.getByRole('button', { name: 'Show Question Bank' }).isVisible()) return
-  await bankPane(page).getByRole('button', { name: 'Open Question Bank' }).click()
+  await bankPane(page).getByRole('button', { name: 'Open Question Bank' }).first().click()
   await page.getByRole('dialog', { name: 'Open Question Bank' }).getByRole('button', { name: /Biology/ }).click()
   await expect(bank(page)).toBeVisible()
 }
@@ -104,14 +104,11 @@ async function centreOf(locator: Locator) {
 test.describe('the Question Bank Pane', () => {
   test('its one toggle closes and reopens it, and each Exam remembers which', async ({ page }) => {
     await openWorkspace(page)
-    // A new Exam starts with the pane open; the X is the top-right control.
+    // A new Exam starts with the pane open; its X is the top-right control.
     await expect(bank(page)).toBeVisible()
-    const hide = page.getByRole('button', { name: 'Hide Question Bank' })
-    await expect(bankPane(page).getByRole('button', { name: 'Hide Question Bank' })).toBeVisible()
-
-    await hide.click()
+    await bankPane(page).getByRole('button', { name: 'Hide Question Bank' }).click()
     await expect(bank(page)).toBeHidden()
-    // Closed, the header runs the full width with the toggle after Export.
+    // Closed, the Exam's bar runs the full width, ending in the bank's button.
     const show = page.getByRole('banner').getByRole('button', { name: 'Show Question Bank' })
     await expect(show).toBeVisible()
     const exportBox = (await page.getByRole('button', { name: 'Export', exact: true }).boundingBox())!

@@ -45,7 +45,7 @@ async function newExam(page: Page) {
 }
 
 async function openBankTab(page: Page, name: RegExp) {
-  await page.getByRole('button', { name: 'Open Question Bank' }).click()
+  await page.getByRole('button', { name: 'Open Question Bank' }).first().click()
   await page.getByRole('dialog', { name: 'Open Question Bank' }).getByRole('button', { name }).click()
 }
 
@@ -87,7 +87,7 @@ test('an Exam with no bank tabs offers opening or creating a Question Bank', asy
   await seedBanks(page)
   await newExam(page)
 
-  await expect(page.getByRole('button', { name: 'Open Question Bank' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open Question Bank' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Create new Question Bank' })).toBeVisible()
   await page.getByRole('button', { name: 'Create new Question Bank' }).click()
 
@@ -99,7 +99,7 @@ test('an Exam with no bank tabs offers opening or creating a Question Bank', asy
 test('the bank picker owns focus and restores it when dismissed', async ({ page }) => {
   await seedBanks(page)
   await newExam(page)
-  const openBank = page.getByRole('button', { name: 'Open Question Bank' })
+  const openBank = page.getByRole('button', { name: 'Open Question Bank' }).first()
   await openBank.click()
   const closePicker = page.getByRole('button', { name: 'Close Question Bank picker' })
   await expect(closePicker).toBeFocused()
@@ -141,18 +141,23 @@ test('search, difficulty, and topic filters remain independent per bank tab', as
   const biologyTab = page.getByRole('tab', { name: 'Biology' })
   await biologyTab.click()
   await search(page).fill('mitosis')
-  await bank(page).getByRole('button', { name: 'Difficulty' }).click()
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: /^Difficulty/ }).click()
   await page.getByRole('group', { name: 'Difficulty' }).getByText('Hard').click()
-  await bank(page).getByRole('button', { name: 'Topic' }).click()
+  await page.keyboard.press('Escape')
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: /^Topic/ }).click()
   await page.getByRole('group', { name: 'Topic' }).getByText('Cells').click()
+  await page.keyboard.press('Escape')
 
   await chemistryTab.click()
   await expect(chemistryTab).toHaveAttribute('aria-selected', 'true')
   await expect(search(page)).toHaveValue('oxygen')
   await biologyTab.click()
   await expect(search(page)).toHaveValue('mitosis')
-  await expect(bank(page).getByRole('button', { name: 'Difficulty' })).toContainText('1')
-  await expect(bank(page).getByRole('button', { name: 'Topic' })).toContainText('1')
+  // Each tab keeps its own filters, shown as its chips.
+  await expect(bank(page).getByRole('button', { name: /^Difficulty: Hard/ })).toBeVisible()
+  await expect(bank(page).getByRole('button', { name: /^Topic: Cells/ })).toBeVisible()
 })
 
 test('a bare editor refresh restores open tabs, the active bank, and its filter', async ({ page }) => {
@@ -181,7 +186,7 @@ test('opening and closing bank tabs does not touch the Exam', async ({ page }) =
   await expect(page.getByRole('tab', { name: 'Biology' })).toHaveAttribute('aria-selected', 'true')
   await page.getByRole('button', { name: 'Close Biology' }).click()
   await expect(page.getByRole('tab')).toHaveCount(0)
-  await expect(page.getByRole('button', { name: 'Open Question Bank' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'Open Question Bank' }).first()).toBeVisible()
   await expect(page.getByRole('button', { name: 'Create new Question Bank' })).toBeVisible()
   await expect(page.getByText('Drag or add a Question from an open Question Bank')).toBeVisible()
   await expect(page.getByRole('button', { name: 'Save', exact: true })).toBeDisabled()
@@ -246,7 +251,7 @@ test('an Exam offers composition from banks but not direct creation or automatic
   await newExam(page)
   await openBankTab(page, /Biology/)
 
-  await expect(page.getByRole('button', { name: 'Add Question' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New question' })).toBeVisible()
   await bank(page).getByRole('button', { name: 'Add Describe mitosis. to the exam' }).click()
   await page.locator('.exam-question').click({ button: 'right' })
   await expect(page.getByRole('menuitem', { name: 'Replace with equivalents' })).toHaveCount(0)
@@ -263,7 +268,7 @@ test('an Exam can browse bank tabs without changing its saved state or Undo', as
   await expect(page.getByLabel('Export Preview')).not.toContainText('Describe mitosis.')
   await page.getByRole('dialog', { name: 'Export' }).getByRole('button', { name: 'Cancel' }).click()
 
-  await page.getByRole('button', { name: 'Open Question Bank' }).click()
+  await page.getByRole('button', { name: 'Open Question Bank' }).first().click()
   const picker = page.getByRole('dialog', { name: 'Open Question Bank' })
   await expect(picker).toContainText('Biology')
   await picker.getByRole('button', { name: /Biology/ }).click()

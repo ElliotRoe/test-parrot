@@ -1608,10 +1608,12 @@ function QuestionBankTabsPane({
         same line: its name where the Exam's name is, and its open banks as
         tabs where the Exam's menus are. */}
     <header className="bank-pane-header">
-    <div className="bank-pane-title">
+    {/* As the Exam's bar has its name over its menus: a quiet name, at the
+        height the Exam's sits, over the tabs. */}
+    <h2 className="bank-pane-title">
       <Database aria-hidden="true" />
-      <h2>Question Banks</h2>
-    </div>
+      Question Banks
+    </h2>
     {tabsTrailing && <div className="bank-tabs-trailing">{tabsTrailing}</div>}
     <div className="bank-tabs-bar">
       <div className="bank-tabs" role="tablist" aria-label="Open Question Banks">
@@ -1656,14 +1658,16 @@ function QuestionBankTabsPane({
       {/* Where Chrome keeps it: a plus at the end of the strip, next to the
           tab that was opened last. With no tabs, the empty state below offers
           the same action with a full label instead. */}
-      {workspace.openBankIds.length > 0 && <button
+      {/* Always there, under the pane's name: with no bank open it is the
+          same action as Get Started's first, kept where it always is. */}
+      <button
         type="button"
         className="open-bank-button"
         aria-label="Open Question Bank"
         title="Open Question Bank"
         disabled={!hydrated}
         onClick={() => void openPicker()}
-      ><Plus /></button>}
+      ><Plus aria-hidden="true" /><span aria-hidden="true">Bank</span></button>
     </div>
     </header>
     {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}
@@ -2578,20 +2582,37 @@ function ExamEditor({
     }
   }
 
-  // The Question Bank Pane's toggle: the bank's icon while it is closed, an X
-  // while it is open, in the same top-right corner either way.
-  const bankToggle = (
+  // The Question Bank Pane's two controls, each in the top-right corner of
+  // its own bar: the pane's X, which stays an X as the pane slides away with
+  // it, and — once it is closed — the block at the Exam bar's end, its whole
+  // height and width one button, behind a rule as the pane is behind its
+  // divider.
+  const bankClose = (
     <button
       type="button"
       className="toolbar-icon-button pane-toggle"
-      aria-label={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
-      title={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
+      aria-label="Hide Question Bank"
+      title="Hide Question Bank"
       aria-expanded={bankOpen}
       aria-controls="question-bank-pane"
       data-pane-toggle=""
-      onClick={() => setPaneOpen('bank', !bankOpen)}
+      onClick={() => setPaneOpen('bank', false)}
     >
-      {bankOpen ? <X aria-hidden="true" /> : <Database aria-hidden="true" />}
+      <X aria-hidden="true" />
+    </button>
+  )
+  const bankShow = (
+    <button
+      type="button"
+      className="bank-show-slot"
+      aria-label="Show Question Bank"
+      title="Show Question Bank"
+      aria-expanded={bankOpen}
+      aria-controls="question-bank-pane"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('bank', true)}
+    >
+      <Database aria-hidden="true" />
     </button>
   )
   // The Exam Outline's toggle, at a fixed place at the left of the Exam's
@@ -2733,10 +2754,7 @@ function ExamEditor({
             >
               Export
             </button>
-            {/* The one control that opens and closes the Question Bank Pane is
-                always the top-right-most: here after Export while the pane is
-                closed, and at the end of the pane's tab strip while it is open. */}
-            {!bankOpen && bankToggle}
+            {!bankOpen && bankShow}
           </div>
         </header>
   )
@@ -3001,7 +3019,7 @@ function ExamEditor({
             <span>Drop to remove from exam</span>
           </div>}
           <QuestionBankTabsPane
-            tabsTrailing={bankToggle}
+            tabsTrailing={bankClose}
             context={{ examId }}
             service={bankWorkspaces}
             onImportBank={onImportBank}
@@ -3028,6 +3046,12 @@ function ExamEditor({
           <>
           {documentBar}
           <div className="exam-body" data-outline-open={outlineOpen ? 'true' : undefined}>
+          {/* One scroll area for the outline and the pages, as a document
+              outline has it: scrolling down, the outline stays where it is;
+              scrolling sideways, it goes with the pages. */}
+          <div className="editor-output">
+          <div className="exam-scroll-row">
+          <div className="exam-outline-rail" data-open={outlineOpen ? 'true' : 'false'}>
           {outlineToggle}
           <div
             id="exam-outline"
@@ -3041,10 +3065,16 @@ function ExamEditor({
               exam={exam}
               arrangement={arrangement}
               drag={drag}
+              selection={selection}
               onReveal={goToQuestion}
+              onRemove={(questionIds) => {
+                store.removeFromWorkingCopy(questionIds)
+                selection.clear()
+              }}
             />}
           </div>
-          <div className="editor-output">
+          </div>
+          <div className="exam-document-column">
             <div
               className="draft-document"
               // The drawer is itself historical browsing, so the exposed part
@@ -3128,6 +3158,8 @@ function ExamEditor({
               />
             </div>
             <Footer />
+          </div>
+          </div>
           </div>
           </div>
           </>

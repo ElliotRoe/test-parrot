@@ -115,6 +115,8 @@ const copyFilter = (filter: QuestionBankFilter = NO_FILTER): QuestionBankFilter 
   difficulties: [...filter.difficulties],
   topics: [...filter.topics],
   sort: filter.sort ?? 'newest',
+  ...(filter.thenBy?.length ? { thenBy: [...filter.thenBy] } : {}),
+  ...(filter.sortChosen ? { sortChosen: true as const } : {}),
 })
 
 const copyTabsWorkspace = (workspace: QuestionBankTabsWorkspace): QuestionBankTabsWorkspace => ({

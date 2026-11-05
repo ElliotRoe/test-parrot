@@ -5,6 +5,9 @@
      each surface mixing its own browns. */
   /* The ground the dashboard's pages sit on, under everything that is paper. */
   --app-ground: #eee6da;
+  /* The Question Bank Pane's ground: a step lighter than the Exam's, so the
+     place to pick from reads apart from the place being written. */
+  --bank-ground: #f4eee5;
   /* The ground a dialog's preview sheets sit on: darker than the paper. */
   --preview-ground: #e9e1d7;
   --paper-surface: #fffaf3;
@@ -26,7 +29,9 @@
   --editor-bar-height: 64px;
   /* Every divider: a rule between two parts of the app — under a header,
      between panes, down an outline, across a dialog — is this one colour. */
-  --divider: #e8dfd2;
+  --divider: #d3c2ac;
+  /* A step softer, for a rule inside a pane rather than between parts. */
+  --divider-soft: #dccbb6;
   --bank-frame-line: #d3c2ac;
 
   /* Badge tints. Muted enough to sit inside a page of prose without shouting,
@@ -142,7 +147,20 @@ button { cursor: pointer; }
 .document-title:hover { border-color: #d8cbbb; }
 .document-title:focus { border-color: #b65f43; box-shadow: inset 0 0 0 1px #b65f43; }
 .header-actions, .dialog-actions { display: flex; align-items: center; gap: 10px; }
-.header-actions { flex: none; justify-content: flex-end; gap: 7px; }
+.header-actions { flex: none; align-self: stretch; justify-content: flex-end; gap: 7px; }
+/* The Question Bank's own button at the bar's end: the whole block behind
+   its full-height rule, out to the window's edge, is the button. */
+.bank-show-slot {
+  align-self: stretch; display: flex; align-items: center; justify-content: center;
+  width: 64px; margin: 0 -18px 0 6px; padding: 0; border: 0; border-left: 1px solid var(--divider);
+  color: #6e5b4d; background: transparent; cursor: pointer;
+  animation: bank-show-in 180ms ease;
+}
+.bank-show-slot:hover { color: #332a24; background: #f7eee3; }
+.bank-show-slot:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -3px; }
+.bank-show-slot svg { width: 20px; height: 20px; }
+@keyframes bank-show-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bank-show-slot { animation: none; } }
 .document-edit-actions { display: flex; align-items: center; gap: 1px; padding-right: 6px; border-right: 1px solid var(--paper-outline); }
 /* Its own width, whatever it is saying. The four states are four different
    sentences, and this changes on every keystroke: as text in a wrapping flex
@@ -383,18 +401,34 @@ button { cursor: pointer; }
    not resizable: it is for getting around, not for reading. Each Section's
    lines hang off a guide rule, and the line in view is marked on that rule,
    as a document outline does. */
-.exam-outline-pane {
-  flex: none; width: 344px; min-height: 0; display: flex; overflow: hidden; background: transparent;
+.exam-scroll-row { display: flex; min-height: 100%; }
+/* With the outline closed, its rail on the left is matched by as much room
+   on the right, so the sheet sits in the middle of the lane. It gives way
+   as the outline opens, at the rail's own pace. */
+.exam-scroll-row::after { content: ''; flex: none; width: 76px; transition: width 220ms ease; }
+.exam-body[data-outline-open] .exam-scroll-row::after { width: 0; }
+@media (prefers-reduced-motion: reduce) { .exam-scroll-row::after { transition: none; } }
+/* Sticky down the lane, so it stays put as the pages scroll by, but in the
+   same row as them, so it scrolls away sideways with them. */
+.exam-outline-rail {
+  position: sticky; top: 0; z-index: 2; align-self: flex-start; flex: none;
+  width: 344px; height: calc(100vh - var(--editor-bar-height)); overflow: hidden;
   transition: width 220ms ease;
 }
 /* Closed, it keeps a rail as wide as its toggle needs, so the toggle never
    sits over the sheet and nothing but the rail's width changes as it opens. */
-.exam-outline-pane[data-open='false'] { width: 76px; }
+.exam-outline-rail[data-open='false'] { width: 76px; }
+@media (prefers-reduced-motion: reduce) { .exam-outline-rail { transition: none; } }
+.exam-outline-pane { display: flex; width: 344px; height: 100%; background: transparent; }
+.exam-outline-pane[data-open='false'] { visibility: hidden; transition: visibility 0s 220ms; }
 .exam-outline-pane > .exam-outline { flex: none; width: 344px; }
-@media (prefers-reduced-motion: reduce) { .exam-outline-pane { transition: none; } }
+/* The pages' column: as wide as the lane, or as its widest sheet. */
+.exam-document-column { flex: 1 0 auto; display: flex; flex-direction: column; }
+.exam-document-column > .draft-document { flex: 1 0 auto; display: flex; flex-direction: column; }
+.exam-document-column > .draft-document > .exam-workspace { flex: 1 0 auto; }
 .exam-outline { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .exam-outline-header {
-  flex: none; display: flex; align-items: center; height: 36px; margin: 12px 0 6px;
+  flex: none; display: flex; align-items: center; height: 36px; margin: 26px 0 6px; /* level with the top of the first sheet */
   /* Room at its left for the toggle that sits over it. */
   padding: 0 10px 0 76px;
 }
@@ -422,6 +456,19 @@ button { cursor: pointer; }
 .exam-outline-item:hover .exam-outline-row { background: rgb(110 91 77 / 7%); }
 /* The grip a Question is moved by: out of sight until the line is hovered,
    then at its right end. */
+.exam-outline-remove {
+  position: absolute; right: 26px; top: 50%; transform: translateY(-50%);
+  display: inline-flex; align-items: center; justify-content: center; width: 22px; height: 22px;
+  padding: 0; border: 0; border-radius: 4px; color: #8a7666; background: transparent; opacity: 0;
+}
+.exam-outline-remove svg { width: 14px; height: 14px; }
+.exam-outline-remove:hover { color: var(--paper-danger); background: var(--paper-danger-wash); }
+.exam-outline-remove:focus-visible { opacity: 1; outline: 2px solid #8a6a4c; outline-offset: -2px; }
+.exam-outline-item:hover .exam-outline-remove { opacity: 1; }
+/* The actions take the place of the Points while the line is hovered. */
+.exam-outline-item:hover .question-row-points { visibility: hidden; }
+/* Selected, as on the page: what Delete Removes and a grip carries. */
+.exam-outline-item[data-selected] .exam-outline-row { background: var(--paper-accent-wash); }
 .exam-outline-grip {
   position: absolute; right: 4px; top: 50%; transform: translateY(-50%);
   display: inline-flex; align-items: center; justify-content: center; width: 20px; height: 24px;
@@ -458,8 +505,9 @@ button { cursor: pointer; }
 }
 .question-line .badge svg { display: none; }
 /* Difficulty by its signal alone: the rising bars say which of the three. */
-.question-line .badge-difficulty[data-icon-only] { width: 22px; justify-content: center; padding: 0; }
-.question-line .badge-difficulty[data-icon-only] svg { display: block; width: 15px; height: 15px; }
+.question-line .badge-difficulty[data-icon-only] { width: 24px; justify-content: center; padding: 0; }
+.question-line .badge-difficulty[data-icon-only] svg { display: block; width: 12px; height: 12px; }
+
 .question-line-type { flex: 0 0.05 auto !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .question-line-topics { flex: 0 1 auto !important; display: flex; gap: 4px; min-width: 0; overflow: hidden; }
 .question-line-topics .badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -472,8 +520,11 @@ button { cursor: pointer; }
    header: it does not move with the sheet or the scroll, and it stays put as
    the outline opens below it, turned into the back arrow that closes it. */
 .exam-body { position: relative; }
+/* Room beside the sheet for what is drawn in its gutter — a Section's arrows,
+   a question's handles — so the outline never covers them. */
+.editor-output .exam-workspace { padding-left: 56px; padding-right: 56px; }
 .exam-outline-toggle {
-  position: absolute; z-index: 61; top: 12px; left: 28px;
+  position: absolute; z-index: 61; top: 26px; left: 28px;
   display: inline-flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 8px;
   color: #6e5b4d; background: transparent;
@@ -506,9 +557,13 @@ button { cursor: pointer; }
   background: linear-gradient(to bottom,
     #fffaf3 0 calc(var(--editor-bar-height) - 1px),
     var(--divider) calc(var(--editor-bar-height) - 1px) var(--editor-bar-height),
-    var(--app-ground) var(--editor-bar-height));
+    var(--bank-ground) var(--editor-bar-height));
 }
 .workspace-resizer:hover, .workspace-resizer:focus-visible { background: #e3d2bd; }
+/* Where the sheet runs on under the pane, the pane's edge casts a faint
+   shadow over it, so it reads as lying on top rather than cutting it off. */
+.workspace-resizer { position: relative; z-index: 3; transition: box-shadow 160ms ease; }
+.authoring-workspace[data-overlapped] .workspace-resizer { box-shadow: -10px 0 16px -6px rgb(55 42 33 / 38%); }
 .workspace-resizer:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 
 /* ---------------------------------------------------------------------------
@@ -521,7 +576,7 @@ button { cursor: pointer; }
    and around the scroll area, so the tab strip is visibly not part of the bank
    it opens. The new-tab plus follows the last tab, where Chrome puts it. */
 .question-bank-authoring {
-  position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--app-ground);
+  position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bank-ground);
 }
 /* A question carried off the Exam over the pane: released, it is Removed. */
 .question-bank-authoring[data-remove-over] { box-shadow: inset 0 0 0 2px var(--paper-danger); }
@@ -536,31 +591,33 @@ button { cursor: pointer; }
 /* The pane's close: the top-right-most control, level with Export. */
 .bank-tabs-trailing { grid-area: close; align-self: center; display: flex; }
 .bank-tabs-pane {
-  /* The same header band and the same ground as the Exam's column beside it. */
-  display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--app-ground);
+  /* The same header band as the Exam's column beside it, over a lighter ground. */
+  display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bank-ground);
 }
 /* Two rows, as the Exam's bar has: the name, then the open banks as tabs
    where the Exam's menus are — on the same band and over the same rule. */
 .bank-pane-header {
   flex: none; height: var(--editor-bar-height); box-sizing: border-box; padding: 0 12px 0 16px;
   background: #fffaf3;
-  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title close' 'tabs close';
-  grid-template-rows: 1fr auto; column-gap: 8px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto;
+  grid-template-areas: 'title close' 'tabs close';
+  grid-template-rows: auto 1fr; column-gap: 8px;
   border-bottom: 1px solid var(--divider); background: #fffaf3;
 }
-.bank-pane-title { grid-area: title; align-self: end; display: flex; align-items: center; gap: 6px; min-width: 0; padding-bottom: 2px; color: #6e5b4d; }
-.bank-pane-title svg { flex: none; width: 14px; height: 14px; }
-.bank-pane-title h2 {
-  margin: 0; overflow: hidden; font-size: 12px; font-weight: 700; letter-spacing: .04em;
+.bank-pane-title {
+  grid-area: title; align-self: start; display: flex; align-items: center; gap: 5px;
+  margin: 0; padding-top: 13px; min-width: 0; overflow: hidden;
+  color: #9a8777; font-size: 11px; font-weight: 600; letter-spacing: .05em;
   text-transform: uppercase; text-overflow: ellipsis; white-space: nowrap;
 }
+.bank-pane-title svg { flex: none; width: 12px; height: 12px; stroke-width: 2.2; }
 .bank-tabs-pane > .question-bank { flex: 1 1 auto; height: auto; min-height: 0; border: 0; border-radius: 0; background: transparent; }
-.bank-tabs-pane > .question-bank .question-bank-toolbar { background: var(--app-ground); }
+.bank-tabs-pane > .question-bank .question-bank-toolbar { background: var(--bank-ground); }
 /* The tabs sit on the header's rule; the active one is underlined on it. */
 .bank-tabs-bar {
   grid-area: tabs; position: relative; z-index: 1; margin-bottom: -1px; min-width: 0;
   display: flex; align-items: flex-end; gap: 2px; padding: 2px 0 0;
-  /* The first tab's name starts where the bank's own content does. */
+  /* The first tab's name starts under the pane's name. */
   margin-left: -6px;
 }
 /* Tabs give up width to each other before the strip scrolls, and the plus
@@ -586,31 +643,29 @@ button { cursor: pointer; }
 .bank-tab svg { width: 12px; height: 12px; }
 .bank-tab > button:focus-visible, .open-bank-button:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 .open-bank-button {
-  display: inline-flex; flex: none; align-self: center; align-items: center; justify-content: center;
-  margin: 0 0 2px 2px; padding: 3px; border: 0; border-radius: 6px;
+  display: inline-flex; flex: none; align-self: center; align-items: center; justify-content: center; gap: 3px;
+  margin: 0 0 2px 4px; padding: 2px 7px 2px 4px; border: 0; border-radius: 6px; font-size: 13px;
   color: #6b5949; background: transparent;
 }
 .open-bank-button:hover:not(:disabled) { color: #3d3027; background: #f0e5d5; }
-.open-bank-button svg { width: 15px; height: 15px; }
+.open-bank-button svg { width: 14px; height: 14px; }
+.open-bank-button { color: #9a8777; }
 .bank-tabs-error { margin: 8px 12px 0; }
 /* The pane with no bank open. It keeps the chrome an open bank has — the
-   name stays where it always is — and fills the rest with the dotted ground
+   name stays where it always is — and fills the rest with the plain ground
    Home draws where a card has not been put yet, carrying a Get Started list:
    the three ways a bank arrives, in the order they are reached for. The whole
    pane is the drop target for a file, and it lights up as one. */
-.question-bank-no-tab { justify-content: flex-start; padding-top: 18px; }
+.bank-tabs-pane > .question-bank-no-tab { justify-content: flex-start; padding-top: 16px; }
 .question-bank-no-tab[data-over] { border-color: var(--paper-accent); }
 .bank-get-started {
   flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center;
-  margin: 0 24px; padding: 24px 22px; border: 1px dashed #cdb9a6; border-radius: 10px; background-color: transparent;
-  background-image: radial-gradient(circle at center, #d6c6b3 1.3px, transparent 1.4px);
-  background-size: 15px 15px; overflow: hidden;
-  transition: border-color .12s ease, background-color .12s ease;
+  margin: 0; padding: 24px 6px; border-radius: 10px; background-color: transparent;
+  overflow: hidden;
+  transition: background-color .12s ease;
 }
-.question-bank-no-tab[data-over] .bank-get-started {
-  border-color: var(--paper-accent); background-color: var(--paper-accent-wash);
-  background-image: radial-gradient(circle at center, #e5c2ae 1.3px, transparent 1.4px);
-}
+/* A file held over the pane: the ground it would drop on lights up. */
+.question-bank-no-tab[data-over] .bank-get-started { background-color: var(--paper-accent-wash); }
 .bank-get-started-title {
   margin: 0 0 10px; color: #6e5b4d; font-size: 13px; font-weight: 700;
   letter-spacing: .04em; text-transform: uppercase;
@@ -1053,14 +1108,16 @@ button { cursor: pointer; }
    heading is no taller with it. The PDF and DOCX adapters right-align it too. */
 .answer-key-heading { display: flex; align-items: baseline; justify-content: space-between; gap: 16px; }
 .answer-key-total { font: 400 15px/1.2 Georgia, serif; }
-/* An entry's `[n]`, when it has Points, follows its blank, before any Question Metadata. */
-.answer-key-entry--pointed { grid-template-columns: 42px 56px auto minmax(0, 1fr); }
 .answer-key-points { white-space: nowrap; }
 .answer-key-section { margin: 0 0 10px; font: 700 17px/1.2 Georgia, serif; }
 .answer-key-entry {
-  display: grid; grid-template-columns: 42px 56px minmax(0, 1fr);
+  display: grid; grid-template-columns: 42px 56px minmax(0, 1fr) auto;
   align-items: center; gap: 8px; margin: 0 0 8px;
 }
+/* Its number, its answer, its Question Metadata, and — when it has Points —
+   its `[n]` against the right margin, in a column under the paper's total. */
+.answer-key-metadata { grid-column: 3; }
+.answer-key-points { grid-column: 4; justify-self: end; }
 .answer-key-answer { min-height: 1.3em; border-bottom: 1px solid #332a24; text-align: center; }
 /* A Suggested Answer takes the lines under its entry, starting under the
    blank. The PDF and DOCX adapters indent it by the same 50px. */
@@ -1071,14 +1128,14 @@ button { cursor: pointer; }
    letter where a question's number goes and the answer on the blank beside it. */
 .answer-key-parts { grid-column: 1 / -1; display: grid; gap: 6px; padding-left: 50px; }
 .answer-key-part {
-  display: grid; grid-template-columns: 24px 56px minmax(0, 1fr);
+  display: grid; grid-template-columns: 24px 56px minmax(0, 1fr) auto;
   align-items: center; gap: 8px;
 }
 .answer-key-part .answer-key-suggested { grid-column: 3 / -1; }
 /* A Subpart's line is labelled with its place under its Part, `b (iii)`, so
    an entry with any takes a wider label column for every line, keeping its
    blanks in one column. The PDF adapter widens its own by the same 56px. */
-.answer-key-parts--subparts .answer-key-part { grid-template-columns: 56px 56px minmax(0, 1fr); }
+.answer-key-parts--subparts .answer-key-part { grid-template-columns: 56px 56px minmax(0, 1fr) auto; }
 .answer-key-metadata { display: flex; align-items: center; flex-wrap: wrap; gap: 5px; min-width: 0; }
 .answer-key-metadata .badge { padding: 0 7px; font: 11px/1.55 Arial, Helvetica, sans-serif; }
 .answer-key-metadata .badge svg { width: 11px; height: 11px; }
@@ -2311,8 +2368,11 @@ body.margins-guides .exam-page::after {
   .authoring-workspace[data-bank-open='false'] .question-bank-authoring {
     transform: translateX(105%); transition: transform 220ms ease, visibility 0s 220ms;
   }
+  .exam-outline-rail, .exam-outline-rail[data-open] { width: 76px; overflow: visible; }
+  .exam-scroll-row::after { width: 0; }
   .exam-outline-pane {
     position: fixed; z-index: 60; top: var(--editor-bar-height); left: 0; bottom: 0; width: min(300px, 88vw);
+    height: auto; background: var(--app-ground);
     box-shadow: 8px 0 24px rgb(55 42 33 / 22%);
     transform: translateX(0); transition: transform 220ms ease, visibility 0s;
   }
@@ -4293,3 +4353,81 @@ button.pop-over-chip-option[aria-pressed='true'] svg { visibility: visible; }
 .bank-picker .resource-picker-list > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; }
 .bank-picker .resource-picker-list > button > span { grid-column: 2 / -1; }
 .bank-picker .bank-picker-folder > svg:last-child { width: 16px; height: 16px; color: #b8a493; }
+
+/* ---------------------------------------------------------------------------
+   The Question Bank Pane's query bar, in the manner of a Notion database: a
+   search box, then Filter and Sort as quiet icon buttons, and what is set as
+   chips on a line beneath that is only there while something is. */
+.bank-query { display: flex; flex-direction: column; gap: 8px; }
+.bank-query-row { display: flex; align-items: center; gap: 2px; }
+.bank-query-row .bank-search { margin-right: 4px; }
+.bank-query-button {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  height: 28px; border: 0; border-radius: 6px; color: #6e5b4d; background: transparent;
+}
+.bank-query-button { width: 28px; padding: 0; }
+.bank-query-button svg { width: 15px; height: 15px; stroke-width: 2; }
+.bank-query-button:hover, .bank-query-button[aria-expanded='true'] { color: #332a24; background: rgb(110 91 77 / 10%); }
+.bank-query-button[data-active] { color: var(--paper-accent); }
+.bank-query-button:focus-visible { outline: 2px solid #8a6a4c; outline-offset: 1px; }
+/* New, the pane's one primary action, at the bar's end. */
+.bank-query-new {
+  display: inline-flex; flex: none; align-items: center; gap: 4px;
+  min-height: 28px; margin-left: 6px; padding: 0 10px 0 8px; font-size: 13px;
+}
+.bank-query-new svg { width: 14px; height: 14px; stroke-width: 2.4; }
+.bank-chips {
+  display: flex; flex-wrap: wrap; align-items: center; gap: 6px;
+  /* Set off from the search under a rule a step softer than the dividers. */
+  padding-top: 8px; border-top: 1px solid var(--divider-soft);
+}
+/* Between the sort and the filters. */
+.bank-chips-rule { align-self: stretch; width: 1px; margin: 2px 2px; background: var(--divider); }
+.bank-chips-add {
+  display: inline-flex; align-items: center; gap: 3px; padding: 3px 7px; border: 0; border-radius: 6px;
+  color: #9a8777; background: transparent; font-size: 12.5px;
+}
+.bank-chips-add:hover { color: #332a24; background: rgb(110 91 77 / 10%); }
+.bank-chips-add svg { width: 13px; height: 13px; }
+.bank-query-sort-row { display: flex; align-items: center; gap: 8px; padding: 4px 4px 4px 8px; }
+.bank-query-sort-order { width: 32px; color: #9a8777; font-size: 12px; }
+.bank-query-sort-name { flex: 1; color: #332a24; }
+.bank-query-sort-remove {
+  display: inline-flex; flex: none; align-items: center; justify-content: center; width: 22px; height: 22px;
+  padding: 0; border: 0; border-radius: 4px; color: #8a7666; background: transparent;
+}
+.bank-query-sort-remove svg { width: 14px; height: 14px; }
+.bank-query-sort-remove:hover { color: var(--paper-danger); background: var(--paper-danger-wash); }
+.bank-query-sort-remove:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
+.bank-chip {
+  display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
+  border: 1px solid #d9c4ae; border-radius: 999px; color: var(--paper-accent);
+  background: var(--paper-accent-wash); font-size: 12.5px;
+}
+.bank-chip > button { display: inline-flex; align-items: center; border: 0; color: inherit; background: transparent; font: inherit; }
+.bank-chip-label { gap: 4px; min-width: 0; padding: 3px 4px 3px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bank-chip-name { font-weight: 600; }
+.bank-chip-label svg { flex: none; width: 13px; height: 13px; }
+.bank-chip-remove { flex: none; justify-content: center; width: 20px; height: 20px; margin-right: 3px; padding: 0; border-radius: 50%; }
+.bank-chip-remove:hover { background: rgb(159 80 55 / 14%); }
+.bank-chip-remove svg { width: 12px; height: 12px; }
+.bank-query-menu {
+  position: fixed; z-index: 900; max-height: 300px; padding: 5px; overflow-y: auto; box-sizing: border-box;
+  border: 1px solid #e0d3c2; border-radius: 8px; background: #fffdf8;
+  box-shadow: 0 8px 24px rgb(91 68 47 / 18%); font-size: 13px;
+}
+.bank-query-item {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  padding: 6px 8px; border: 0; border-radius: 5px; color: #332a24; background: transparent;
+  font: inherit; text-align: left;
+}
+.bank-query-item:hover, .bank-query-item:focus-visible { background: #f2e6d8; outline: none; }
+.bank-query-item svg { width: 14px; height: 14px; color: var(--paper-accent); }
+.bank-query-count {
+  min-width: 18px; padding: 0 5px; border-radius: 999px; color: #fffaf3; background: var(--paper-accent);
+  font-size: 11px; line-height: 18px; text-align: center;
+}
+.bank-query-menu-title { margin: 2px 8px 4px; color: #9a8777; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.bank-query-option { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: pointer; }
+.bank-query-option:hover { background: #f2e6d8; }
+.bank-query-empty { margin: 4px 8px 6px; color: #7a6a5c; }

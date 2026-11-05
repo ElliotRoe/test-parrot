@@ -254,10 +254,10 @@ function blockLines(
             marks: [],
           },
           ...(letter ? [{ kind: 'text' as const, text: letter, marks: ['strong'] }] : []),
-          ...pointsText(entryPoints),
           ...(metadataText
             ? [{ kind: 'text' as const, text: ` ${metadataText}`, marks: [] }]
             : []),
+          ...pointsText(entryPoints),
         ]),
       ),
       // A Suggested Answer is ordinary content on the lines below.

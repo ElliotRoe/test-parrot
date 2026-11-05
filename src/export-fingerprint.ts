@@ -639,7 +639,7 @@ function planAnswering(
   ]
 }
 
-/** An Answer Key line's `[n]`, after its answer, when it has points. */
+/** An Answer Key line's `[n]`, last on its line, when it has points. */
 export function pointsSegments(points: number | undefined): Segment[] {
   return points === undefined ? [] : [{ kind: 'text', text: ` ${answerKeyPointsText(points)}`, marks: [] }]
 }
@@ -690,10 +690,11 @@ export function planItemLines(
             ...(item.letter
               ? [{ kind: 'text' as const, text: item.letter, marks: ['strong'] }]
               : []),
-            ...pointsSegments(item.points),
             ...(metadata.length > 0
               ? [{ kind: 'text' as const, text: ` ${metadata.join(' ')}`, marks: [] }]
               : []),
+            // Last on its line, against the right margin.
+            ...pointsSegments(item.points),
           ]),
         ),
         ...(item.suggestedAnswer ? planBlocks(item.suggestedAnswer, {}, images) : []),

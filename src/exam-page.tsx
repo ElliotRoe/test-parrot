@@ -2044,7 +2044,15 @@ export function ExamPage({
     )
     // Not paginated onto a page yet: this effect runs again on the next plan.
     if (!element) return
-    element.scrollIntoView({ block: revealAlignment, inline: 'nearest' })
+    const lane = element.closest('.editor-output')
+    if (revealAlignment === 'start' && lane && lane.scrollHeight > lane.clientHeight) {
+      // Gone to from the outline: only down or up. Moving the lane sideways
+      // too would carry the outline itself off to the side.
+      const margin = parseFloat(getComputedStyle(element).scrollMarginTop) || 0
+      lane.scrollTop += element.getBoundingClientRect().top - lane.getBoundingClientRect().top - margin
+    } else {
+      element.scrollIntoView({ block: revealAlignment, inline: 'nearest' })
+    }
     onRevealed?.()
   }, [revealQuestionId, plan, onRevealed, revealAlignment])
 
@@ -2101,6 +2109,17 @@ export function ExamPage({
     )
   }, [])
   useLayoutEffect(measureSectionBands, [measureSectionBands, plan, drag.intent])
+  // The sheet moves sideways without repaginating — the Question Bank Pane or
+  // the outline opening or closing re-centres it — so the bands, which hold
+  // where the sheet's left edge is for the controls in its gutter, are read
+  // again whenever the workspace changes size.
+  useEffect(() => {
+    const root = workspace.current
+    if (!root) return
+    const observer = new ResizeObserver(() => measureSectionBands())
+    observer.observe(root)
+    return () => observer.disconnect()
+  }, [measureSectionBands])
   useEffect(() => {
     // A target that opens in the sheet's flow grows into place, so the bands
     // are read again once it has.

@@ -6,7 +6,7 @@ test('on a short screen the slash menu’s Advanced group can still be reached a
   await page.getByRole('button', { name: 'New', exact: true }).click()
   await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await page.getByRole('button', { name: 'New Question Bank' }).click()
-  await page.getByRole('button', { name: 'Add Question' }).click()
+  await page.getByRole('button', { name: 'New question' }).click()
   await page.getByRole('menuitem', { name: 'Multiple choice' }).click()
 
   const dialog = page.getByRole('dialog', { name: 'Question editor' })

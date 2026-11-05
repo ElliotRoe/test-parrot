@@ -9,7 +9,8 @@
 // page. Sections are not dragged here.
 
 import { useEffect, useRef, useState, type PointerEvent as ReactPointerEvent } from 'react'
-import { GripVertical } from 'lucide-react'
+import { GripVertical, X } from 'lucide-react'
+import type { Selection } from './use-selection'
 import type { Arrangement, Exam, QuestionType } from './exam'
 import { outlineOf } from './exam-outline'
 import { QuestionLine } from './question-summary'
@@ -72,15 +73,24 @@ export function ExamOutline({
   exam,
   arrangement,
   drag,
+  selection,
   onReveal,
+  onRemove,
 }: {
   exam: Exam
   arrangement: Arrangement
   drag: WorkspaceDrag
+  /** The page's own selection. A plain click only goes to a Question; with
+   *  Shift or Cmd/Ctrl it selects, as on the page, and what is selected is
+   *  dragged together and Removed by the Delete key. */
+  selection: Selection
   /** Scrolls the Question into view on the page. */
   onReveal: (questionId: string) => void
+  /** Removes these Questions from the Exam. */
+  onRemove: (questionIds: readonly string[]) => void
 }) {
   const outline = outlineOf(exam, arrangement)
+  const orderedIds = outline.flatMap(({ entries }) => entries.map(({ question }) => question.id))
   const [inView, setInView] = useState<string | null>(null)
   // A row just chosen is the one in view, whatever the geometry says, until
   // the teacher scrolls on their own — a Question near the end of the Exam
@@ -174,11 +184,17 @@ export function ExamOutline({
         if (Math.hypot(event.clientX - held.startX, event.clientY - held.startY) < DRAG_THRESHOLD) return
         held.dragging = true
         suppressClick.current = held.questionId
+        // A selected line carries the whole selection with it, in print order.
+        const questionIds = selection.isSelected(held.questionId)
+          ? orderedIds.filter((id) => selection.isSelected(id))
+          : [held.questionId]
         const item = event.currentTarget.closest<HTMLElement>('.exam-outline-item') ?? event.currentTarget
+        const elements = [...(item.closest('.exam-outline')?.querySelectorAll<HTMLElement>('.exam-outline-item') ?? [])]
+          .filter((element) => questionIds.includes(element.dataset.outlineQuestionId ?? ''))
         drag.begin(
-          { pane: 'exam-draft', questionIds: [held.questionId], type: held.type },
+          { pane: 'exam-draft', questionIds, type: held.type },
           {
-            elements: [item],
+            elements: elements.length > 0 ? elements : [item],
             bounds: item.getBoundingClientRect(),
             point: { x: held.startX, y: held.startY },
           },
@@ -246,14 +262,23 @@ export function ExamOutline({
                       data-section-id={section.id}
                       data-drop={edgeDrop(dropStateOf(drag.intent, question.id), item, span)}
                       data-dragging={drag.draggedQuestionIds.has(question.id) ? 'true' : undefined}
+                      data-selected={selection.isSelected(question.id) ? 'true' : undefined}
                     >
                       <button
                         type="button"
                         className="exam-outline-row"
                         aria-current={inView === question.id ? 'location' : undefined}
-                        onClick={() => {
+                        onClick={(event) => {
                           if (suppressClick.current === question.id) {
                             suppressClick.current = null
+                            return
+                          }
+                          if (event.shiftKey || event.metaKey || event.ctrlKey) {
+                            selection.selectOne(question.id, orderedIds, {
+                              shiftKey: event.shiftKey,
+                              metaKey: event.metaKey,
+                              ctrlKey: event.ctrlKey,
+                            })
                             return
                           }
                           reveal(question.id)
@@ -261,9 +286,22 @@ export function ExamOutline({
                       >
                         <QuestionLine question={question} number={number + item} />
                       </button>
-                      {/* Moving a Question is done from its grip alone, which
-                          shows on hover: a click anywhere else on the line
-                          only goes to it. */}
+                      {/* Its actions, shown on hover in place of its Points:
+                          Remove, and the grip a Question is moved by — a
+                          click anywhere else on the line only goes to it. */}
+                      <button
+                        type="button"
+                        className="exam-outline-remove"
+                        aria-label={`Remove question ${number + item} from the exam`}
+                        title="Remove from exam"
+                        onClick={() => onRemove(
+                          selection.isSelected(question.id)
+                            ? orderedIds.filter((id) => selection.isSelected(id))
+                            : [question.id],
+                        )}
+                      >
+                        <X aria-hidden="true" />
+                      </button>
                       <span
                         className="exam-outline-grip"
                         title="Drag to move"
