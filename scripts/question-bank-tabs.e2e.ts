@@ -98,7 +98,7 @@ test('an Exam with no bank tabs offers opening or creating a Question Bank', asy
 test('the bank picker owns focus and restores it when dismissed', async ({ page }) => {
   await seedBanks(page)
   await newExam(page)
-  const openBank = page.getByRole('button', { name: 'Open Question Bank' })
+  const openBank = page.getByRole('button', { name: 'Open Question Bank' }).first()
   await openBank.click()
   const closePicker = page.getByRole('button', { name: 'Close Question Bank picker' })
   await expect(closePicker).toBeFocused()
