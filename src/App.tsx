@@ -3061,6 +3061,12 @@ function ExamEditor({
           <>
           {documentBar}
           <div className="exam-body" data-outline-open={outlineOpen ? 'true' : undefined}>
+          {/* One scroll area for the outline and the pages, as a document
+              outline has it: scrolling down, the outline stays where it is;
+              scrolling sideways, it goes with the pages. */}
+          <div className="editor-output">
+          <div className="exam-scroll-row">
+          <div className="exam-outline-rail" data-open={outlineOpen ? 'true' : 'false'}>
           {outlineToggle}
           <div
             id="exam-outline"
@@ -3077,7 +3083,8 @@ function ExamEditor({
               onReveal={goToQuestion}
             />}
           </div>
-          <div className="editor-output">
+          </div>
+          <div className="exam-document-column">
             <div
               className="draft-document"
               // The drawer is itself historical browsing, so the exposed part
@@ -3161,6 +3168,8 @@ function ExamEditor({
               />
             </div>
             <Footer />
+          </div>
+          </div>
           </div>
           </div>
           </>

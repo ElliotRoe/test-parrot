@@ -3,37 +3,33 @@
 // row that shows them must agree — a Topic that is one colour in the front
 // matter and another in the bank would read as two Topics.
 
-import { SignalHigh, SignalLow, SignalMedium, Tag } from 'lucide-react'
+import { Tag } from 'lucide-react'
 import { DIFFICULTY_LABELS, type Difficulty } from './exam'
-import type { ReactNode } from 'react'
 import { topicTint } from './topic-tint'
 
-/** Difficulty is ordered, so it is drawn as a rising signal rather than three
- *  unrelated pictures: the mark says which of the three it is even where the
- *  colour cannot. */
-const DIFFICULTY_ICONS: Record<Difficulty, ReactNode> = {
-  easy: <SignalLow />,
-  medium: <SignalMedium />,
-  hard: <SignalHigh />,
+/** Difficulty is ordered, so it is drawn as a rising stack of arrows — one
+ *  for Easy, two for Medium, three for Hard — rather than three unrelated
+ *  pictures: the mark says which of the three it is even where the colour
+ *  cannot, and it is the same mark wherever a Difficulty is shown. */
+const ARROW_ROWS: Record<Difficulty, readonly number[]> = {
+  easy: [15],
+  medium: [18, 11],
+  hard: [21, 14, 7],
 }
 
-/** Difficulty as a meter of three bars, filled to its level and centred in
- *  its own box — for a badge with no room for the word. */
-function DifficultyBars({ difficulty }: { difficulty: Difficulty }) {
-  const level = { easy: 1, medium: 2, hard: 3 }[difficulty]
+export function DifficultyIcon({ difficulty }: { difficulty: Difficulty }) {
   return (
-    <svg className="difficulty-bars" viewBox="0 0 12 12" aria-hidden="true">
-      {[4, 7, 10].map((height, index) => (
-        <rect
-          key={height}
-          x={1 + index * 3.75}
-          y={11 - height}
-          width={2.5}
-          height={height}
-          rx={0.75}
-          data-off={index >= level ? '' : undefined}
-        />
-      ))}
+    <svg
+      className="difficulty-arrows"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth={2.6}
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      {ARROW_ROWS[difficulty].map((y) => <path key={y} d={`M3 ${y}l9-6 9 6`} />)}
     </svg>
   )
 }
@@ -51,7 +47,7 @@ export function DifficultyBadge({ difficulty, iconOnly = false }: {
       data-icon-only={iconOnly ? 'true' : undefined}
       title={iconOnly ? DIFFICULTY_LABELS[difficulty] : undefined}
     >
-      {iconOnly ? <DifficultyBars difficulty={difficulty} /> : DIFFICULTY_ICONS[difficulty]}
+      <DifficultyIcon difficulty={difficulty} />
       {iconOnly
         ? <span className="sr-only">{DIFFICULTY_LABELS[difficulty]}</span>
         : DIFFICULTY_LABELS[difficulty]}

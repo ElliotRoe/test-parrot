@@ -2031,7 +2031,15 @@ export function ExamPage({
     )
     // Not paginated onto a page yet: this effect runs again on the next plan.
     if (!element) return
-    element.scrollIntoView({ block: revealAlignment, inline: 'nearest' })
+    const lane = element.closest('.editor-output')
+    if (revealAlignment === 'start' && lane && lane.scrollHeight > lane.clientHeight) {
+      // Gone to from the outline: only down or up. Moving the lane sideways
+      // too would carry the outline itself off to the side.
+      const margin = parseFloat(getComputedStyle(element).scrollMarginTop) || 0
+      lane.scrollTop += element.getBoundingClientRect().top - lane.getBoundingClientRect().top - margin
+    } else {
+      element.scrollIntoView({ block: revealAlignment, inline: 'nearest' })
+    }
     onRevealed?.()
   }, [revealQuestionId, plan, onRevealed, revealAlignment])
 

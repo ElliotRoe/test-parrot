@@ -386,15 +386,25 @@ button { cursor: pointer; }
    not resizable: it is for getting around, not for reading. Each Section's
    lines hang off a guide rule, and the line in view is marked on that rule,
    as a document outline does. */
-.exam-outline-pane {
-  flex: none; width: 344px; min-height: 0; display: flex; overflow: hidden; background: transparent;
+.exam-scroll-row { display: flex; min-height: 100%; }
+/* Sticky down the lane, so it stays put as the pages scroll by, but in the
+   same row as them, so it scrolls away sideways with them. */
+.exam-outline-rail {
+  position: sticky; top: 0; z-index: 2; align-self: flex-start; flex: none;
+  width: 344px; height: calc(100vh - var(--editor-bar-height)); overflow: hidden;
   transition: width 220ms ease;
 }
 /* Closed, it keeps a rail as wide as its toggle needs, so the toggle never
    sits over the sheet and nothing but the rail's width changes as it opens. */
-.exam-outline-pane[data-open='false'] { width: 76px; }
+.exam-outline-rail[data-open='false'] { width: 76px; }
+@media (prefers-reduced-motion: reduce) { .exam-outline-rail { transition: none; } }
+.exam-outline-pane { display: flex; width: 344px; height: 100%; background: transparent; }
+.exam-outline-pane[data-open='false'] { visibility: hidden; transition: visibility 0s 220ms; }
 .exam-outline-pane > .exam-outline { flex: none; width: 344px; }
-@media (prefers-reduced-motion: reduce) { .exam-outline-pane { transition: none; } }
+/* The pages' column: as wide as the lane, or as its widest sheet. */
+.exam-document-column { flex: 1 0 auto; display: flex; flex-direction: column; }
+.exam-document-column > .draft-document { flex: 1 0 auto; display: flex; flex-direction: column; }
+.exam-document-column > .draft-document > .exam-workspace { flex: 1 0 auto; }
 .exam-outline { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .exam-outline-header {
   flex: none; display: flex; align-items: center; height: 36px; margin: 12px 0 6px;
@@ -463,9 +473,7 @@ button { cursor: pointer; }
 /* Difficulty by its signal alone: the rising bars say which of the three. */
 .question-line .badge-difficulty[data-icon-only] { width: 24px; justify-content: center; padding: 0; }
 .question-line .badge-difficulty[data-icon-only] svg { display: block; width: 12px; height: 12px; }
-/* The level's bars are solid; the ones above it are faint. */
-.difficulty-bars rect { fill: currentColor; }
-.difficulty-bars rect[data-off] { opacity: .28; }
+
 .question-line-type { flex: 0 0.05 auto !important; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
 .question-line-topics { flex: 0 1 auto !important; display: flex; gap: 4px; min-width: 0; overflow: hidden; }
 .question-line-topics .badge { flex: 0 1 auto; min-width: 0; overflow: hidden; text-overflow: ellipsis; }
@@ -478,6 +486,9 @@ button { cursor: pointer; }
    header: it does not move with the sheet or the scroll, and it stays put as
    the outline opens below it, turned into the back arrow that closes it. */
 .exam-body { position: relative; }
+/* Room beside the sheet for what is drawn in its gutter — a Section's arrows,
+   a question's handles — so the outline never covers them. */
+.editor-output .exam-workspace { padding-left: 56px; padding-right: 56px; }
 .exam-outline-toggle {
   position: absolute; z-index: 61; top: 12px; left: 28px;
   display: inline-flex; align-items: center; justify-content: center;
@@ -2321,8 +2332,10 @@ body.margins-guides .exam-page::after {
   .authoring-workspace[data-bank-open='false'] .question-bank-authoring {
     transform: translateX(105%); transition: transform 220ms ease, visibility 0s 220ms;
   }
+  .exam-outline-rail, .exam-outline-rail[data-open] { width: 76px; overflow: visible; }
   .exam-outline-pane {
     position: fixed; z-index: 60; top: var(--editor-bar-height); left: 0; bottom: 0; width: min(300px, 88vw);
+    height: auto; background: var(--app-ground);
     box-shadow: 8px 0 24px rgb(55 42 33 / 22%);
     transform: translateX(0); transition: transform 220ms ease, visibility 0s;
   }
