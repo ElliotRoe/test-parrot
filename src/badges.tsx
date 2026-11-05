@@ -29,7 +29,7 @@ export function DifficultyIcon({ difficulty }: { difficulty: Difficulty }) {
       strokeLinejoin="round"
       aria-hidden="true"
     >
-      {ARROW_ROWS[difficulty].map((y) => <path key={y} d={`M3 ${y}l9-6 9 6`} />)}
+      {ARROW_ROWS[difficulty].map((y) => <path key={y} d={`M6 ${y}l6-6 6 6`} />)}
     </svg>
   )
 }
