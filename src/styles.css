@@ -407,7 +407,7 @@ button { cursor: pointer; }
 .exam-document-column > .draft-document > .exam-workspace { flex: 1 0 auto; }
 .exam-outline { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
 .exam-outline-header {
-  flex: none; display: flex; align-items: center; height: 36px; margin: 12px 0 6px;
+  flex: none; display: flex; align-items: center; height: 36px; margin: 26px 0 6px; /* level with the top of the first sheet */
   /* Room at its left for the toggle that sits over it. */
   padding: 0 10px 0 76px;
 }
@@ -490,7 +490,7 @@ button { cursor: pointer; }
    a question's handles — so the outline never covers them. */
 .editor-output .exam-workspace { padding-left: 56px; padding-right: 56px; }
 .exam-outline-toggle {
-  position: absolute; z-index: 61; top: 12px; left: 28px;
+  position: absolute; z-index: 61; top: 26px; left: 28px;
   display: inline-flex; align-items: center; justify-content: center;
   width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 8px;
   color: #6e5b4d; background: transparent;
