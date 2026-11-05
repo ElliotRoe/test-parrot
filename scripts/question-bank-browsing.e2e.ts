@@ -88,7 +88,9 @@ const search = (page: Page) =>
   page.getByRole('searchbox', { name: 'Search question stems' })
 const dialog = (page: Page) => page.getByRole('dialog', { name: 'Question editor' })
 
-async function openBank(page: Page, questionIds: string[] = ['q1', 'q2']) {
+// Nothing on the Exam, so the bank lists every Question: beside an Exam it
+// lists only those not yet on it.
+async function openBank(page: Page, questionIds: string[] = []) {
   await seedAuthoringState(page, {
     questionBank: { questions: QUESTIONS },
     workingCopy: { title: 'Biology quiz', questionIds },
@@ -117,7 +119,6 @@ test('a compact row shows the stem, its classification and nothing hidden', asyn
   await expect(leaves).toContainText('Multiple choice')
   await expect(leaves).toContainText('Easy')
   await expect(leaves).toContainText('Biology')
-  await expect(leaves).toContainText('In exam')
   // Answer choices and their correctness stay behind the popup.
   await expect(bank(page)).not.toContainText('Chlorophyll')
   await expect(bank(page)).not.toContainText('Keratin')
@@ -259,7 +260,8 @@ test('a highlighted row is let go of by pressing Escape or by pressing elsewhere
 
   await row(page, 'Photosynthesis at night').click()
   await expect(row(page, 'Photosynthesis at night')).toHaveAttribute('aria-current', 'true')
-  await bank(page).getByRole('heading', { name: 'Question Bank' }).click()
+  // A click on the bank's own ground, away from any row or control.
+  await bank(page).click({ position: { x: 6, y: 6 } })
   await expect(row(page, 'Photosynthesis at night')).not.toHaveAttribute('aria-current', 'true')
 })
 

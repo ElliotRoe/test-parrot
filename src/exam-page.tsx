@@ -1804,6 +1804,7 @@ export function ExamPage({
   drag,
   revealQuestionId,
   onRevealed,
+  revealAlignment = 'nearest',
   onEdit,
   onDuplicate,
   onShuffleSelected,
@@ -1839,6 +1840,9 @@ export function ExamPage({
    *  on a page — which, for an insertion, is not the same moment. */
   revealQuestionId?: string | null
   onRevealed?: () => void
+  /** Where the revealed question is brought to: the nearest edge for one an
+   *  action has just put on the page, the top for one the teacher went to. */
+  revealAlignment?: ScrollLogicalPosition
   onEdit: (questionId: string) => void
   onDuplicate: (questionId: string) => void
   onShuffleSelected: (questionIds: readonly string[]) => void
@@ -2027,9 +2031,9 @@ export function ExamPage({
     )
     // Not paginated onto a page yet: this effect runs again on the next plan.
     if (!element) return
-    element.scrollIntoView({ block: 'nearest', inline: 'nearest' })
+    element.scrollIntoView({ block: revealAlignment, inline: 'nearest' })
     onRevealed?.()
-  }, [revealQuestionId, plan, onRevealed])
+  }, [revealQuestionId, plan, onRevealed, revealAlignment])
 
   // Keyed on the numbered piece: a split question's handles and menu belong to
   // the piece carrying its number, and that is the one holding its `number`.

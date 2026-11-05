@@ -1,5 +1,5 @@
 import { useEffect, useRef, useState } from 'react'
-import { ChevronLeft, ChevronRight, EllipsisVertical, FileImage, FileJson, FileText, FolderOpen, ImageIcon, Library, Trash2 } from 'lucide-react'
+import { ChevronLeft, ChevronRight, EllipsisVertical, FileImage, FileJson, FileText, FileQuestionMark, FolderOpen, ImageIcon, Trash2 } from 'lucide-react'
 import { AppShell } from './app-shell'
 import type { PersistentStorageStatus } from './durable-storage'
 import {
@@ -94,7 +94,7 @@ function ImportCard({
   const opens = entry.stage === 'imported'
     ? [
         ...entry.imported.exams.map((exam) => ({ label: exam.name || 'Untitled Test', href: `/editor?exam=${exam.id}`, Icon: FileText })),
-        ...entry.imported.banks.map((bank) => ({ label: bank.name || 'Untitled Question Bank', href: `/question-bank?id=${bank.id}`, Icon: Library })),
+        ...entry.imported.banks.map((bank) => ({ label: bank.name || 'Untitled Question Bank', href: `/question-bank?id=${bank.id}`, Icon: FileQuestionMark })),
       ]
     : []
   const items: MenuItem[] = entry.stage === 'waiting'

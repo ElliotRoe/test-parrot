@@ -17,6 +17,8 @@ import { useCallback, useEffect, useRef, useState } from 'react'
 import {
   dropIntent,
   landsOnRelease,
+  outlineDropIntent,
+  removeIntent,
   type DragSource,
   type DropBox,
   type DropCandidate,
@@ -64,6 +66,38 @@ const QUESTION_PIECE_SELECTOR = '.exam-question[data-question-id]'
 export const EMPTY_SECTION_SELECTOR = '[data-empty-section]'
 /** The new-Section target, while it is open beneath a Section. */
 export const NEW_SECTION_SELECTOR = '[data-new-section-after]'
+/** The open Question Bank Pane: a question carried off the Exam and released
+ *  over it is Removed. A closed pane does not carry it. */
+export const REMOVE_ZONE_SELECTOR = '[data-remove-drop-zone]'
+/** The Exam Outline, and its rows: a second, compact field to move a
+ *  question in, which lands through the same store operation as the page. */
+export const OUTLINE_ZONE_SELECTOR = '[data-outline-drop-zone]'
+const OUTLINE_ROW_SELECTOR = '[data-outline-question-id]'
+const OUTLINE_EMPTY_SECTION_SELECTOR = '[data-outline-empty-section]'
+
+/** Everything on the Exam Outline a gesture can land on, read off its rows. */
+function outlineFieldOf(zone: Element): Omit<DropField, 'openNewSection'> {
+  const candidates: DropCandidate[] = [
+    ...zone.querySelectorAll<HTMLElement>(OUTLINE_ROW_SELECTOR),
+  ].flatMap((row) => {
+    const { outlineQuestionId: questionId, sectionId } = row.dataset
+    if (!questionId || !sectionId) return []
+    const bounds = row.getBoundingClientRect()
+    return [{
+      questionId,
+      sectionId,
+      before: { y: bounds.top, left: bounds.left, right: bounds.right },
+      after: { y: bounds.bottom, left: bounds.left, right: bounds.right },
+    }]
+  })
+  const emptySections: EmptySection[] = [
+    ...zone.querySelectorAll<HTMLElement>(OUTLINE_EMPTY_SECTION_SELECTOR),
+  ].flatMap((element) => {
+    const sectionId = element.dataset.outlineEmptySection
+    return sectionId ? [{ sectionId, box: boxOf(element.getBoundingClientRect()) }] : []
+  })
+  return { candidates, emptySections }
+}
 
 function boxOf(bounds: DOMRect): DropBox {
   return { top: bounds.top, bottom: bounds.bottom, left: bounds.left, right: bounds.right }
@@ -189,6 +223,7 @@ function sameIntent(a: DropIntent | null, b: DropIntent | null): boolean {
  *  would change nothing says nothing: the cursor already says it. */
 function intentLabel(intent: DropIntent | null): string {
   if (!landsOnRelease(intent)) return ''
+  if (intent!.kind === 'remove') return 'Remove'
   return intent!.kind === 'new-section' ? 'New section' : 'Insert'
 }
 
@@ -362,6 +397,20 @@ export function useWorkspaceDrag(
     (point: { x: number; y: number }) => {
       const current = sourceRef.current
       if (!current) return
+      const under = document.elementFromPoint(point.x, point.y)
+      if (under?.closest(REMOVE_ZONE_SELECTOR)) {
+        paint(removeIntent(current))
+        return
+      }
+      const outline = under?.closest(OUTLINE_ZONE_SELECTOR)
+      if (outline) {
+        // A bank row is composed onto the page, where its place is seen;
+        // the outline only rearranges what is already there.
+        paint(current.pane === 'exam-draft'
+          ? outlineDropIntent(current, outlineFieldOf(outline), point)
+          : null)
+        return
+      }
       const field = fieldAt(point)
       paint(
         dropIntent(
@@ -387,7 +436,12 @@ export function useWorkspaceDrag(
     autoscrollFrame.current = null
     const point = pointer.current
     if (!point || !sourceRef.current) return
-    const scroller = examScroller()
+    // Over the outline or the bank the pointer is aiming at them, not asking
+    // the Exam to scroll.
+    const over = document.elementFromPoint(point.x, point.y)
+    const scroller = over?.closest(`${OUTLINE_ZONE_SELECTOR}, ${REMOVE_ZONE_SELECTOR}`)
+      ? null
+      : examScroller()
     if (scroller) {
       const step = autoscrollStep(point.y, scroller.top, scroller.bottom)
       const before = scroller.element.scrollTop

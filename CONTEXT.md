@@ -24,6 +24,14 @@ _Avoid_: Question library
 A compact, read-only, always-on-top window of Question Banks, kept beside another document so a teacher can select Questions and drag or Copy them across. It opens from a bank, holds that bank as one of its own tabs with their own filters, and belongs to no Exam; nothing in it edits, adds to an Exam, or deletes. How each Question is laid out for copying — its answer columns, Word Bank placement, answer lines — is set there for that window only and forgotten when it closes.
 _Avoid_: Popup, mini mode, floating bank
 
+**Question Bank Pane**:
+The collapsible pane paired with an open Exam, showing its Question Banks as tabs, from which a teacher adds Questions to it. It lists only the Questions not yet in that Exam, so a Question leaves the pane as it is added and returns when it is Removed; nothing in the bank itself changes. Dropping a Question from the Exam onto it Removes that Question.
+_Avoid_: Bank panel, sidebar, Question Bank (for the pane)
+
+**Exam Outline**:
+The collapsible list of an open Exam's Questions in print order, grouped under their Section Headings, one entry per Question however many Items or Parts it has, with its number, the start of its stem, its Points, Question Type and Question Metadata. Choosing an entry brings that Question into view; dragging one moves the Question, within its Section or into another, exactly as moving it on the page does.
+_Avoid_: Table of contents, navigator, question list
+
 **Copy**:
 To put Questions' student-facing Question Content on the clipboard, or drag it, ready for another document: stems, answer choices, the T and F to circle, Items and Word Bank or Parts, lettered and laid out as a test prints them and unnumbered, with pictures embedded and mathematics as pictures or, for Microsoft Word, as MathML. It never carries correctness, a Suggested Answer, Question Metadata or Work Space, and it changes nothing; Duplicate is what creates a new Question.
 _Avoid_: Duplicate (for putting a Question on the clipboard), export
@@ -136,7 +144,7 @@ The chronological collection of an Exam's Export Records, kept for as long as th
 _Avoid_: Version History, audit log
 
 **Remove**:
-To exclude Question Content from an Exam while leaving it in its Question Bank.
+To exclude Question Content from an Exam while leaving it in its Question Bank, where it is listed again in that Exam's Question Bank Pane. It asks for no confirmation and is undone like any other change to the Working Copy.
 
 **Delete**:
 To permanently remove Question Content from its Question Bank, every Exam that references it, and their Working Copies. Deletion requires showing the affected Exams and explicit confirmation; existing Export Records remain unchanged. Deleting an Exam permanently removes it and its Export History after a confirmation naming the Exam and how many Export Records go with it.

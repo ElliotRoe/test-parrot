@@ -21,6 +21,10 @@
   /* The Question Bank window and the strip its tabs sit on. The strip is
      deliberately darker than any authoring surface: it is frame, not paper. */
   --bank-chrome: #e9ddcb;
+  /* The editor's header band, which the Exam's bar and the Question Bank
+     Pane's header share so that one rule runs under both. */
+  --editor-bar-height: 64px;
+  --editor-bar-line: #e8dfd2;
   --bank-frame-line: #d3c2ac;
 
   /* Badge tints. Muted enough to sit inside a page of prose without shouting,
@@ -107,11 +111,12 @@ button { cursor: pointer; }
 }
 
 .document-bar {
-  flex: none; position: sticky; top: 0; z-index: 20; min-height: 58px; padding: 9px 18px;
+  flex: none; position: sticky; top: 0; z-index: 20;
+  height: var(--editor-bar-height); box-sizing: border-box; padding: 0 18px;
   display: flex; align-items: center; justify-content: space-between; gap: 20px;
-  border-bottom: 1px solid #e8dfd2; background: #fffaf3;
+  border-bottom: 1px solid var(--editor-bar-line); background: #fffaf3;
 }
-.document-identity { display: flex; align-items: center; gap: 10px; min-width: 0; }
+.document-identity { display: flex; flex: 0 1 auto; align-items: center; gap: 10px; min-width: 0; }
 .document-title-stack { display: flex; flex-direction: column; align-items: flex-start; min-width: 0; }
 .document-menus { display: flex; align-items: center; gap: 2px; padding-left: 3px; }
 .document-menu-button {
@@ -129,13 +134,13 @@ button { cursor: pointer; }
   /* Leave the document actions one stable header row at desktop widths. The
      title remains roomy while Save, Discard and its Working Copy status are
      present instead of making the sticky bar grow after scrolling begins. */
-  width: min(280px, 34vw); padding: 1px 7px 2px; border: 1px solid transparent;
+  width: min(280px, 34vw); max-width: 100%; padding: 1px 7px 2px; border: 1px solid transparent;
   border-radius: 4px; color: #332a24; background: transparent; font-size: 18px; outline: none;
 }
 .document-title:hover { border-color: #d8cbbb; }
 .document-title:focus { border-color: #b65f43; box-shadow: inset 0 0 0 1px #b65f43; }
 .header-actions, .dialog-actions { display: flex; align-items: center; gap: 10px; }
-.header-actions { flex-wrap: wrap; justify-content: flex-end; gap: 7px; }
+.header-actions { flex: none; justify-content: flex-end; gap: 7px; }
 .document-edit-actions { display: flex; align-items: center; gap: 1px; padding-right: 6px; border-right: 1px solid var(--paper-outline); }
 /* Its own width, whatever it is saying. The four states are four different
    sentences, and this changes on every keystroke: as text in a wrapping flex
@@ -353,9 +358,95 @@ button { cursor: pointer; }
 .authoring-workspace {
   --bank-column: 33%;
   --bank-divider: 6px;
-  display: grid; grid-template-columns: 1fr var(--bank-divider) var(--bank-column);
+  display: grid; grid-template-columns: minmax(0, 1fr) var(--bank-divider) var(--bank-column);
   align-items: stretch;
+  transition: grid-template-columns 220ms ease;
 }
+/* Closed, the pane slides out with its divider and the Exam takes the width. */
+.authoring-workspace[data-bank-open='false'] { grid-template-columns: minmax(0, 1fr) 0px 0%; }
+.authoring-workspace[data-resizing] { transition: none; }
+.workspace-resizer[hidden] { display: block; visibility: hidden; border: 0; }
+.authoring-workspace[data-bank-open='false'] .question-bank-authoring { visibility: hidden; transition: visibility 0s 220ms; }
+@media (prefers-reduced-motion: reduce) { .authoring-workspace { transition: none; } }
+
+/* The Exam's column: its own header over the outline and the pages. The
+   header stops where the Question Bank Pane begins, and the pane runs the
+   window's full height beside it. */
+.exam-column { display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.exam-body { flex: 1 1 auto; display: flex; min-height: 0; }
+.exam-body > .editor-output { flex: 1 1 auto; }
+
+/* The Exam Outline: a fixed column below the header that pushes the pages
+   right. Not resizable — it is for getting around, not for reading. */
+.exam-outline-pane {
+  flex: none; width: 260px; min-height: 0; display: flex; overflow: hidden;
+  border-right: 1px solid var(--editor-bar-line); background: transparent;
+  transition: width 220ms ease, border-color 220ms ease;
+}
+.exam-outline-pane[data-open='false'] { width: 0; border-right-color: transparent; }
+.exam-outline-pane > .exam-outline { flex: none; width: 260px; }
+@media (prefers-reduced-motion: reduce) { .exam-outline-pane { transition: none; } }
+.exam-outline { flex: 1 1 auto; display: flex; flex-direction: column; min-width: 0; min-height: 0; }
+.exam-outline-header {
+  flex: none; display: flex; align-items: center; height: 36px; margin: 12px 0 6px;
+  /* Room at its left for the toggle that sits over it. */
+  padding: 0 10px 0 56px;
+}
+.exam-outline-header h2 { margin: 0; color: #6e5b4d; font-size: 12px; font-weight: 700; letter-spacing: .04em; text-transform: uppercase; }
+.exam-outline-sections { flex: 1 1 auto; min-height: 0; overflow-y: auto; margin: 0; padding: 0 10px 16px; list-style: none; }
+.exam-outline-section + .exam-outline-section { margin-top: 12px; }
+.exam-outline-heading {
+  margin: 6px 4px 6px; overflow: hidden; color: #4e3b2f;
+  font-size: 13px; font-weight: 700; text-overflow: ellipsis; white-space: nowrap;
+}
+.exam-outline-list { display: flex; flex-direction: column; gap: 2px; margin: 0; padding: 0; list-style: none; }
+.exam-outline-empty { margin: 0 14px; color: #7a6a5c; font-size: 12.5px; }
+.exam-outline-section .exam-outline-empty { margin: 0 4px; }
+.exam-outline-row {
+  position: relative; width: 100%; padding: 6px 8px; font: inherit; text-align: left; cursor: grab;
+  border-color: transparent; background: transparent;
+}
+.exam-outline-row:hover { border-color: transparent; background: rgb(110 91 77 / 7%); }
+.exam-outline-row:active { cursor: grabbing; }
+.exam-outline-row .question-bank-row-line { font-size: 13px; }
+.question-row-number { color: #4e3b2f; font-weight: 700; letter-spacing: 0; font-variant-numeric: tabular-nums; }
+.question-row-points { letter-spacing: 0; text-transform: none; font-variant-numeric: tabular-nums; }
+/* The Question in view as the pages scroll. */
+.exam-outline-row[aria-current='location'] {
+  border-color: transparent; box-shadow: inset 3px 0 0 var(--paper-accent);
+}
+.exam-outline-row[data-dragging] { opacity: 0.4; }
+.exam-outline-row[data-drop]::after {
+  content: ''; position: absolute; left: 4px; right: 4px; height: 3px; border-radius: 2px;
+  background: var(--paper-accent);
+}
+.exam-outline-row[data-drop='before']::after { top: -5px; }
+.exam-outline-row[data-drop='after']::after { bottom: -5px; }
+.question-drag-preview .exam-outline-row { max-width: 260px; }
+
+/* Its toggle, at a fixed place at the left of the Exam's column below the
+   header: it does not move with the sheet or the scroll, and it stays put as
+   the outline opens below it, turned into the back arrow that closes it. */
+.exam-body { position: relative; }
+.exam-outline-toggle {
+  position: absolute; z-index: 61; top: 12px; left: 12px;
+  display: inline-flex; align-items: center; justify-content: center;
+  width: 36px; height: 36px; padding: 0; border: 1px solid transparent; border-radius: 8px;
+  color: #6e5b4d; background: transparent;
+}
+.exam-outline-toggle:hover { border-color: #d8cbbb; background: #f7eee3; }
+.exam-outline-toggle svg { width: 18px; height: 18px; }
+/* With the outline closed, the sheet keeps clear of the toggle. */
+/* Kept the same open or closed, and on both sides, so the sheet stays
+   centred and only slides as the outline opens — it never jumps. */
+.editor-output .exam-workspace { padding-left: 64px; padding-right: 64px; }
+/* A Question chosen from the outline, marked for a moment where it landed. */
+.exam-question[data-outline-flash] { animation: outline-flash 1.2s ease-out; }
+@keyframes outline-flash {
+  0%, 35% { background: var(--paper-accent-wash); box-shadow: 0 0 0 6px var(--paper-accent-wash); }
+  100% { background: transparent; box-shadow: 0 0 0 6px transparent; }
+}
+@media (prefers-reduced-motion: reduce) { .exam-question[data-outline-flash] { animation: none; outline: 2px solid var(--paper-accent); } }
 /* The Exam's lane, and the only thing in the editor that scrolls. Both ways:
    the sheet keeps its printed width, so a narrow lane scrolls sideways rather
    than showing a layout the printer will not produce. */
@@ -367,8 +458,12 @@ button { cursor: pointer; }
 /* The divider. A real control: it takes focus and answers the arrow keys, so
    the split is resizable without a pointer. */
 .workspace-resizer {
-  min-height: 0; cursor: col-resize;
-  background: var(--bank-chrome); border-left: 1px solid #e8dfd2;
+  min-height: 0; cursor: col-resize; border-left: 1px solid var(--editor-bar-line);
+  /* The header band and its rule run on through the divider. */
+  background: linear-gradient(to bottom,
+    #fffaf3 0 calc(var(--editor-bar-height) - 1px),
+    var(--editor-bar-line) calc(var(--editor-bar-height) - 1px) var(--editor-bar-height),
+    #fff var(--editor-bar-height));
 }
 .workspace-resizer:hover, .workspace-resizer:focus-visible { background: #e3d2bd; }
 .workspace-resizer:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
@@ -383,22 +478,40 @@ button { cursor: pointer; }
    and around the scroll area, so the tab strip is visibly not part of the bank
    it opens. The new-tab plus follows the last tab, where Chrome puts it. */
 .question-bank-authoring {
-  min-width: 0; min-height: 0; background: var(--bank-chrome);
+  position: relative; min-width: 0; min-height: 0; overflow: hidden; background: #fff;
 }
+/* A question carried off the Exam over the pane: released, it is Removed. */
+.question-bank-authoring[data-remove-over] { box-shadow: inset 0 0 0 2px var(--paper-danger); }
+.bank-remove-drop {
+  position: absolute; inset: 0; z-index: 5; display: grid; place-items: center;
+  background: rgb(248 224 218 / 88%); pointer-events: none;
+}
+.bank-remove-drop span {
+  padding: 8px 14px; border: 1px solid var(--paper-danger); border-radius: 999px;
+  color: var(--paper-danger); background: #fffaf3; font-weight: 700;
+}
+/* The pane's close: the top-right-most control, level with Export. */
+.bank-tabs-trailing { grid-area: close; align-self: center; display: flex; }
 .bank-tabs-pane {
-  display: flex; flex-direction: column; height: 100%; min-height: 0;
-  padding: 0 10px 10px; background: var(--bank-chrome);
+  display: flex; flex-direction: column; height: 100%; min-height: 0; background: #fff;
 }
-.bank-tabs-pane > .question-bank { flex: 1 1 auto; height: auto; min-height: 0; }
-/* The strip's last pixel row is the window's own top border. An inactive tab
-   is transparent there, so the border runs on through it; the active tab
-   paints over it, and the tab and the bank below become one surface with no
-   line between them. The overlap lives here rather than on the active tab so
-   that nothing inside the horizontally scrolling tab list overflows it
-   vertically — that is what puts a second scrollbar on the strip. */
+/* Two rows, as the Exam's bar has: the name, then the open banks as tabs
+   where the Exam's menus are — on the same band and over the same rule. */
+.bank-pane-header {
+  flex: none; height: var(--editor-bar-height); box-sizing: border-box; padding: 0 12px 0 16px;
+  display: grid; grid-template-columns: minmax(0, 1fr) auto; grid-template-areas: 'title close' 'tabs close';
+  grid-template-rows: 1fr auto; column-gap: 8px;
+  border-bottom: 1px solid var(--editor-bar-line); background: #fffaf3;
+}
+.bank-pane-title { grid-area: title; align-self: end; display: flex; align-items: center; gap: 8px; min-width: 0; color: #332a24; }
+.bank-pane-title svg { flex: none; width: 18px; height: 18px; color: var(--paper-accent); }
+.bank-pane-title h2 { margin: 0; overflow: hidden; font-size: 17px; font-weight: 600; text-overflow: ellipsis; white-space: nowrap; }
+.bank-tabs-pane > .question-bank { flex: 1 1 auto; height: auto; min-height: 0; border: 0; border-radius: 0; background: #fff; }
+.bank-tabs-pane > .question-bank .question-bank-toolbar { background: #fff; }
+/* The tabs sit on the header's rule; the active one is underlined on it. */
 .bank-tabs-bar {
-  position: relative; z-index: 1; margin-bottom: -1px;
-  display: flex; align-items: stretch; gap: 2px; padding: 8px 0 0;
+  grid-area: tabs; position: relative; z-index: 1; margin-bottom: -1px; min-width: 0;
+  display: flex; align-items: flex-end; gap: 2px; padding: 2px 0 0 18px;
 }
 /* Tabs give up width to each other before the strip scrolls, and the plus
    never gives up any, so it stays reachable however many banks are open. */
@@ -408,37 +521,34 @@ button { cursor: pointer; }
 }
 .bank-tab {
   display: flex; flex: 0 1 auto; align-items: center; min-width: 40px; overflow: hidden;
-  border: 1px solid transparent; border-bottom: 0; border-radius: 9px 9px 0 0;
-  color: #6b5949; background: transparent;
+  border-bottom: 2px solid transparent; border-radius: 4px 4px 0 0;
+  color: #5f4d40; background: transparent; font-size: 13px;
 }
-.bank-tab:hover:not([data-active]) { background: #f0e5d5; }
-.bank-tab[data-active] {
-  border-color: var(--bank-frame-line); color: #3d3027; background: var(--paper-surface);
-}
-.bank-tab > button { border: 0; color: inherit; background: transparent; }
-.bank-tab > button[role='tab'] { flex: 0 1 auto; max-width: 180px; min-width: 0; padding: 8px 5px 8px 11px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.bank-tab:hover:not([data-active]) { background: #f2e6d8; }
+.bank-tab[data-active] { border-bottom-color: var(--paper-accent); color: #2f2419; font-weight: 600; }
+.bank-tab > button { border: 0; color: inherit; background: transparent; font: inherit; }
+.bank-tab > button[role='tab'] { flex: 0 1 auto; max-width: 180px; min-width: 0; padding: 3px 3px 5px 6px; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .bank-tab > button:last-child {
   display: inline-flex; flex: none; align-items: center; justify-content: center;
-  width: 24px; height: 24px; margin: 0 4px 0 1px; padding: 0; border-radius: 50%;
+  width: 18px; height: 18px; margin: 0 2px 2px 0; padding: 0; border-radius: 50%; opacity: .7;
 }
-.bank-tab > button:last-child:hover { background: #e2d3bf; }
-.bank-tab svg { width: 14px; height: 14px; }
+.bank-tab > button:last-child:hover { background: #e2d3bf; opacity: 1; }
+.bank-tab svg { width: 12px; height: 12px; }
 .bank-tab > button:focus-visible, .open-bank-button:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 .open-bank-button {
   display: inline-flex; flex: none; align-self: center; align-items: center; justify-content: center;
-  margin: 4px 0 0 4px; padding: 5px; border: 0; border-radius: 6px;
+  margin: 0 0 2px 2px; padding: 3px; border: 0; border-radius: 6px;
   color: #6b5949; background: transparent;
 }
 .open-bank-button:hover:not(:disabled) { color: #3d3027; background: #f0e5d5; }
-.open-bank-button svg { width: 17px; height: 17px; }
-.bank-tabs-error { margin: 8px 0 0; }
+.open-bank-button svg { width: 15px; height: 15px; }
+.bank-tabs-error { margin: 8px 12px 0; }
 /* The pane with no bank open. It keeps the chrome an open bank has — the
    name stays where it always is — and fills the rest with the dotted ground
    Home draws where a card has not been put yet, carrying a Get Started list:
    the three ways a bank arrives, in the order they are reached for. The whole
    pane is the drop target for a file, and it lights up as one. */
-.question-bank-no-tab { justify-content: flex-start; }
-.question-bank-no-tab .question-bank-toolbar { margin-bottom: 0; }
+.question-bank-no-tab { justify-content: flex-start; padding-top: 18px; }
 .question-bank-no-tab[data-over] { border-color: var(--paper-accent); }
 .bank-get-started {
   flex: 1 1 auto; min-height: 0; display: flex; flex-direction: column; justify-content: center;
@@ -675,32 +785,23 @@ button { cursor: pointer; }
 /* Positioned so what is placed absolutely inside a row, such as a button's
    screen-reader label, scrolls and clips with the list rather than being
    placed on the page, where rows scrolled out of sight made it scroll. */
-.question-bank-list {
+.question-bank-list-lane {
   position: relative;
   flex: 1 1 auto; min-height: 0; overflow-y: auto; scrollbar-gutter: stable;
+  display: flex; flex-direction: column; gap: 10px;
+}
+.question-bank-list {
+  position: relative;
   display: flex; flex-direction: column; gap: 8px; margin: 0; padding: 0; list-style: none;
 }
+/* What the pane is not listing, because it is on the Exam already. */
+.question-bank-in-exam { margin: 0; padding: 2px 4px 6px; color: #7a6a5c; font-size: 12.5px; text-align: center; }
+.question-bank-in-exam[data-empty] { padding: 28px 12px; font-size: 13.5px; }
 .question-bank-row {
   display: flex; align-items: flex-start; gap: 10px; padding: 10px 12px;
   border: 1px solid #e2d6c5; border-radius: 8px; background: #fffdf8;
 }
 .question-bank-row:hover { border-color: #d8cbbb; }
-.question-bank-row[data-in-exam] {
-  border-color: var(--paper-outline); background: var(--paper-surface-low);
-}
-/* On the exam: a tick at rest, and the minus that takes it off under the
-   cursor. Both icons are always in the slot, so the swap costs no layout and
-   the button never changes size. */
-.question-bank-included { color: var(--paper-accent); }
-.question-bank-included-hover { display: none; }
-.question-bank-included:hover, .question-bank-included:focus-visible {
-  border-color: var(--paper-danger-line); color: var(--paper-danger);
-  background: var(--paper-danger-wash);
-}
-.question-bank-included:hover .question-bank-included-resting,
-.question-bank-included:focus-visible .question-bank-included-resting { display: none; }
-.question-bank-included:hover .question-bank-included-hover,
-.question-bank-included:focus-visible .question-bank-included-hover { display: block; }
 /* The clicked row. Selection is a place to act from, not a change to the exam:
    it is never persisted and never undoable. */
 .question-bank-row[aria-current='true'] {
@@ -708,8 +809,7 @@ button { cursor: pointer; }
   background: var(--paper-accent-wash);
 }
 .question-bank-row:focus-visible { outline: 2px solid #8a6a4c; outline-offset: 2px; }
-/* An unused row is a drag source and says so; a row already on the exam is
-   not one, because a reference occurs at most once. */
+/* A row is a drag source and says so. */
 .question-bank-row[data-draggable] { cursor: grab; }
 .question-bank-row[data-draggable]:active { cursor: grabbing; }
 .question-bank-row[data-dragging] { opacity: 0.4; }
@@ -719,10 +819,6 @@ button { cursor: pointer; }
 .question-bank-row-meta {
   display: flex; align-items: center; flex-wrap: wrap; gap: 8px;
   color: #7a6a5c; font-size: 11px; letter-spacing: 0.05em; text-transform: uppercase;
-}
-.question-bank-row-badge {
-  padding: 1px 7px; border-radius: 999px;
-  color: #4e3b2f; background: #efe2d1; letter-spacing: 0; text-transform: none;
 }
 /* One line, always: the row is a projection of the stem, and a taller row would
    make the bank harder to scan rather than more informative. */
@@ -979,7 +1075,7 @@ button { cursor: pointer; }
 /* A gesture scrolls the Exam, not the bank it was lifted from: the browser's
    own drag autoscroll would otherwise carry the list the press started in.
    The reserved gutter keeps the rows from widening when its scrollbar goes. */
-.question-drag-active .question-bank-list { overflow-y: hidden; }
+.question-drag-active .question-bank-list-lane { overflow-y: hidden; }
 
 /* While a Question Bank question is in flight, every position it could reach
    says so — before the pointer is over any one of them, which is what makes a
@@ -2149,22 +2245,32 @@ body.margins-guides .exam-page::after {
    shrinking it would mean showing a layout the printer will not produce. The
    workspace scrolls instead. */
 @media (max-width: 880px) {
-  /* Too narrow for two panes: the bank goes above the sheet rather than
-     squeezing it, and the divider has nothing left to divide. */
-  .editor-shell { height: auto; overflow: visible; }
-  .editor-shell > .authoring-workspace { grid-template-rows: none; }
-  .authoring-workspace {
-    --bank-divider: 0px; grid-template-columns: 1fr;
+  /* Too narrow for columns beside the sheet: the Question Bank Pane and the
+     Exam Outline are each a sheet over it instead, one at a time, and the
+     divider has nothing left to divide. */
+  .authoring-workspace,
+  .authoring-workspace[data-bank-open='false'] {
+    --bank-divider: 0px; grid-template-columns: minmax(0, 1fr); transition: none;
   }
-  .editor-output { overflow: visible; }
-  .editor-output .exam-workspace { min-height: calc(100vh - 58px); }
-  .question-bank-authoring { height: auto; }
-  .bank-tabs-pane { padding: 0; }
-  .question-bank {
-    height: auto; max-height: 44vh;
-    border-width: 1px 0 0; border-radius: 0;
+  .workspace-resizer, .workspace-resizer[hidden] { display: none; }
+  .question-bank-authoring {
+    position: fixed; z-index: 60; top: 0; right: 0; bottom: 0; width: min(420px, 92vw);
+    box-shadow: -8px 0 24px rgb(55 42 33 / 22%);
+    transform: translateX(0); transition: transform 220ms ease, visibility 0s;
   }
-  .workspace-resizer { display: none; }
+  .authoring-workspace[data-bank-open='false'] .question-bank-authoring {
+    transform: translateX(105%); transition: transform 220ms ease, visibility 0s 220ms;
+  }
+  .exam-outline-pane {
+    position: fixed; z-index: 60; top: var(--editor-bar-height); left: 0; bottom: 0; width: min(300px, 88vw);
+    box-shadow: 8px 0 24px rgb(55 42 33 / 22%);
+    transform: translateX(0); transition: transform 220ms ease, visibility 0s;
+  }
+  .exam-outline-pane[data-open='false'] {
+    width: min(300px, 88vw); transform: translateX(-105%);
+    transition: transform 220ms ease, visibility 0s 220ms; visibility: hidden;
+  }
+  .exam-outline-pane > .exam-outline { width: 100%; }
   .exam-workspace { padding: 16px 0; }
   .dialog-backdrop { padding: 0; }
   /* Keep the output-faithful paper available: the dialog stacks rather than
@@ -3929,3 +4035,7 @@ button.pop-over-chip-option[aria-pressed='true'] svg { visibility: visible; }
 .sheet-picture-handle[data-grip='sw'] { left: -5px; bottom: -5px; cursor: nesw-resize; }
 .sheet-picture-handle[data-grip='se'] { right: -5px; bottom: -5px; cursor: nwse-resize; }
 @media print { .sheet-picture-frame { display: none; } }
+
+/* Gone to from the Exam Outline, a question comes to rest just below the top
+   of the lane rather than flush against it. */
+.exam-workspace .exam-question { scroll-margin-top: 16px; }

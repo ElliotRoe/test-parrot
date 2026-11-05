@@ -98,6 +98,7 @@ import { NO_FILTER, topicOptions, type QuestionBankFilter } from './question-ban
 import { useSelection } from './use-selection'
 import { useWorkspaceDrag } from './use-workspace-drag'
 import { WorkspaceSplit } from './workspace-split'
+import { ExamOutline } from './exam-outline-pane'
 import {
   DEFAULT_EXPORT_CONFIGURATION,
   PicturesNeededError,
@@ -129,6 +130,7 @@ import { storedPicture } from './resolved-pictures'
 import { pendingImagesOfQuestions, withStoredPictures, type PendingImageResolution, type StoredPicture } from './pending-images'
 import {
   AlignCenter,
+  ArrowLeft,
   AlignLeft,
   BookOpenText,
   Captions,
@@ -141,9 +143,10 @@ import {
   Heading,
   Import,
   History,
-  Library,
+  FileQuestionMark,
   ListChecks,
   ListOrdered,
+  List,
   ToggleLeft,
   Link2,
   Pencil,
@@ -242,6 +245,19 @@ const QUESTION_TYPE_ICONS: Record<QuestionType, ReactNode> = {
 }
 
 const STORAGE_NOTICE_DURATION = 8_000
+
+/** The width below which the editor's panes stop being columns beside the
+ *  pages and become sheets over them. The stylesheet breaks at the same width. */
+const NARROW_LAYOUT_QUERY = '(max-width: 880px)'
+const subscribeToNarrowLayout = (onChange: () => void) => {
+  const query = window.matchMedia(NARROW_LAYOUT_QUERY)
+  query.addEventListener('change', onChange)
+  return () => query.removeEventListener('change', onChange)
+}
+const useNarrowLayout = () => useSyncExternalStore(
+  subscribeToNarrowLayout,
+  () => window.matchMedia(NARROW_LAYOUT_QUERY).matches,
+)
 
 /** The Exam's menu bar, in the order a document's menus are read. */
 const DOCUMENT_MENUS = ['file', 'edit', 'format'] as const
@@ -967,7 +983,7 @@ function QuestionDialog({
           {ownerName && (
             <div className="front-matter-field">
               <span className="front-matter-label">
-                <Library />
+                <FileQuestionMark />
                 Question Bank
               </span>
               <span className="front-matter-value front-matter-stated">{ownerName}</span>
@@ -1302,7 +1318,6 @@ function QuestionBankWorkspace({
   examsService,
   onAddToExam,
   onAddManyToExam,
-  onRemoveFromExam,
   beforeCanonicalQuestionCommit,
   onCanonicalQuestionCommitted,
   onQuestionDeleted,
@@ -1325,7 +1340,6 @@ function QuestionBankWorkspace({
   examsService?: ExamWorkspaceService
   onAddToExam?: (question: Question) => void
   onAddManyToExam?: (questions: readonly Question[]) => void
-  onRemoveFromExam?: (questionId: string) => void
   beforeCanonicalQuestionCommit?: () => Promise<void>
   onCanonicalQuestionCommitted?: (question: Question) => void
   onQuestionDeleted?: (questionId: string) => void
@@ -1384,7 +1398,6 @@ function QuestionBankWorkspace({
             onAddManyToExam(questions)
           }
         : undefined}
-      onRemoveFromWorkingCopy={onRemoveFromExam}
       onPasteQuestions={(questionIds) => void (async () => {
         // A paste into a bank makes new Questions like the copied ones, as
         // Duplicate does — into their own bank or any other — and selects
@@ -1459,6 +1472,7 @@ function QuestionBankWorkspace({
 }
 
 function QuestionBankTabsPane({
+  tabsTrailing,
   context,
   service,
   onImportBank,
@@ -1466,7 +1480,6 @@ function QuestionBankTabsPane({
   onQuestionsChange,
   onAddToExam,
   onAddManyToExam,
-  onRemoveFromExam,
   workspaceDrag,
   resourceRevision = 0,
   examsService,
@@ -1474,6 +1487,8 @@ function QuestionBankTabsPane({
   onCanonicalQuestionCommitted,
   onQuestionDeleted,
 }: {
+  /** What ends the tab strip, after the plus: the pane's own close. */
+  tabsTrailing?: ReactNode
   context: BankWorkspaceContext
   service: QuestionBankWorkspaceService
   /** Opens the import dialog — with a file, when one was dropped on the empty
@@ -1483,7 +1498,6 @@ function QuestionBankTabsPane({
   onQuestionsChange?: (questions: readonly Question[]) => void
   onAddToExam?: (question: Question) => void
   onAddManyToExam?: (questions: readonly Question[]) => void
-  onRemoveFromExam?: (questionId: string) => void
   workspaceDrag?: ReturnType<typeof useWorkspaceDrag>
   resourceRevision?: number
   examsService?: ExamWorkspaceService
@@ -1499,7 +1513,7 @@ function QuestionBankTabsPane({
     openBankIds: [],
     activeBankId: null,
     filters: {},
-    pane: { bankPercent: 33 },
+    pane: { bankPercent: 33, bankOpen: true, outlineOpen: false },
   }))
   const [resources, setResources] = useState<Record<string, QuestionBankResource>>({})
   const [pickerBanks, setPickerBanks] = useState<QuestionBankSummary[] | null>(null)
@@ -1613,7 +1627,15 @@ function QuestionBankTabsPane({
     data-import-bank-id={active?.id}
     data-import-bank-name={active?.name}
   >
-    {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}
+    {/* The pane's own header, built as the Exam's is beside it and on the
+        same line: its name where the Exam's name is, and its open banks as
+        tabs where the Exam's menus are. */}
+    <header className="bank-pane-header">
+    <div className="bank-pane-title">
+      <FileQuestionMark aria-hidden="true" />
+      <h2>Question Bank</h2>
+    </div>
+    {tabsTrailing && <div className="bank-tabs-trailing">{tabsTrailing}</div>}
     <div className="bank-tabs-bar">
       <div className="bank-tabs" role="tablist" aria-label="Open Question Banks">
         {workspace.openBankIds.map((id, index) => {
@@ -1666,9 +1688,14 @@ function QuestionBankTabsPane({
         onClick={() => void openPicker()}
       ><Plus /></button>}
     </div>
+    </header>
+    {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}
     {active ? <QuestionBankWorkspace
       key={active.id}
       bank={active}
+      // The pane's header already says it is the Question Bank, and the tab
+      // says which; the bank keeps its name for a screen reader.
+      heading={<h2 className="sr-only">{active.name}</h2>}
       service={service}
       filter={filter}
       onFilterChange={(nextFilter) => {
@@ -1682,7 +1709,6 @@ function QuestionBankTabsPane({
       examsService={examsService}
       onAddToExam={onAddToExam}
       onAddManyToExam={onAddManyToExam}
-      onRemoveFromExam={onRemoveFromExam}
       beforeCanonicalQuestionCommit={beforeCanonicalQuestionCommit}
       onCanonicalQuestionCommitted={onCanonicalQuestionCommitted}
       onQuestionDeleted={onQuestionDeleted}
@@ -1710,14 +1736,10 @@ function QuestionBankTabsPane({
         if (file) onImportBank(file)
       }}
     >
-      {/* The same chrome as an open bank, so the pane keeps its name while it
-          is empty. What follows is the editor's Get Started page: the three
+      {/* With no bank open the pane is the editor's Get Started page: the three
           ways a bank gets here, in the order they are reached for, on the
           dotted ground Home uses for a space a card has not been put in yet.
           The whole pane is also the drop target for a file. */}
-      <div className="question-bank-toolbar">
-        <header className="question-bank-header"><h2>Question Bank</h2></header>
-      </div>
       <div className="bank-get-started">
         <p className="bank-get-started-title">Get started</p>
         <div className="bank-get-started-actions">
@@ -2125,18 +2147,61 @@ function ExamEditor({
   const selectOnWorkingCopy = selection.select
   const [bankPercent, setBankPercent] = useState(33)
   const [bankRevision, setBankRevision] = useState(0)
+  // Whether the Question Bank Pane and the Exam Outline are open, remembered
+  // per Exam beside the bank tabs. Not authoring: never dirties or undoes.
+  const [panes, setPanes] = useState({ bankOpen: true, outlineOpen: false, loaded: false })
   useEffect(() => {
     let current = true
     void bankWorkspaces.workspace({ examId }).then((workspace) => {
-      if (current) setBankPercent(workspace.pane.bankPercent)
+      if (!current) return
+      setBankPercent(workspace.pane.bankPercent)
+      setPanes({ bankOpen: workspace.pane.bankOpen, outlineOpen: workspace.pane.outlineOpen, loaded: true })
     })
     return () => { current = false }
   }, [bankWorkspaces, examId])
+  // Too narrow for columns beside the pages, each pane is a sheet over them
+  // instead: one at a time, closed by a click outside it, and not remembered
+  // — a sheet left open would cover the Exam the next time it is opened.
+  const narrow = useNarrowLayout()
+  const [narrowSheet, setNarrowSheet] = useState<'bank' | 'outline' | null>(null)
+  const bankOpen = narrow ? narrowSheet === 'bank' : panes.bankOpen
+  const outlineOpen = narrow ? narrowSheet === 'outline' : panes.outlineOpen
+  const setPaneOpen = (pane: 'bank' | 'outline', open: boolean) => {
+    if (narrow) {
+      setNarrowSheet(open ? pane : (current) => current === pane ? null : current)
+      return
+    }
+    const change = pane === 'bank' ? { bankOpen: open } : { outlineOpen: open }
+    setPanes((current) => ({ ...current, ...change }))
+    void bankWorkspaces.updatePanes({ examId }, change)
+  }
+  useEffect(() => {
+    if (!narrow || !narrowSheet) return
+    const onPointerDown = (event: PointerEvent) => {
+      const target = event.target as Element | null
+      // Inside the sheet, on its toggle, or in something it opened over itself
+      // — a menu, a dialog — is not outside it.
+      if (target?.closest('[data-pane-sheet], [data-pane-toggle], .context-menu, .dialog-backdrop, .bank-filter-list')) return
+      setNarrowSheet(null)
+    }
+    document.addEventListener('pointerdown', onPointerDown)
+    return () => document.removeEventListener('pointerdown', onPointerDown)
+  }, [narrow, narrowSheet])
   // A question an authoring action has just put on the Working Copy, waiting to be
   // revealed. `ExamPage` clears it once repagination has actually put it on a
   // page, which — for a change of content — is not the same moment.
   const [revealQuestionId, setRevealQuestionId] = useState<string | null>(null)
-  const clearReveal = useCallback(() => setRevealQuestionId(null), [])
+  // A Question gone to from the Exam Outline is brought to the top of the
+  // lane; one an action has just added, only as far as it takes to show it.
+  const [revealAlignment, setRevealAlignment] = useState<ScrollLogicalPosition>('nearest')
+  const clearReveal = useCallback(() => {
+    setRevealQuestionId(null)
+    setRevealAlignment('nearest')
+  }, [])
+  const goToQuestion = useCallback((questionId: string) => {
+    setRevealAlignment('start')
+    setRevealQuestionId(questionId)
+  }, [])
   // The outcome of the latest Vary command stays visible and is announced to
   // assistive technology. It is transient UI feedback, not authoring state.
   const [varySummary, setVarySummary] = useState<string | null>(null)
@@ -2244,6 +2309,13 @@ function ExamEditor({
   // itself refuses a cross-section or duplicating drop, so the geometry above
   // only ever has to decide *where*, never *whether*.
   const drag = useWorkspaceDrag((source, intent) => {
+    if (intent.kind === 'remove') {
+      // Carried off the Exam onto the Question Bank Pane: Removed, where it is
+      // listed again. One store operation, so one Undo brings it all back.
+      store.removeFromWorkingCopy(source.questionIds)
+      selection.clear()
+      return
+    }
     const target: SectionTarget =
       intent.kind === 'insert'
         ? { kind: 'question', questionId: intent.targetQuestionId, placement: intent.placement }
@@ -2526,125 +2598,167 @@ function ExamEditor({
     }
   }
 
+  // The Question Bank Pane's toggle: the bank's icon while it is closed, an X
+  // while it is open, in the same top-right corner either way.
+  const bankToggle = (
+    <button
+      type="button"
+      className="toolbar-icon-button pane-toggle"
+      aria-label={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
+      title={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
+      aria-expanded={bankOpen}
+      aria-controls="question-bank-pane"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('bank', !bankOpen)}
+    >
+      {bankOpen ? <X aria-hidden="true" /> : <FileQuestionMark aria-hidden="true" />}
+    </button>
+  )
+  // The Exam Outline's toggle, at a fixed place at the left of the Exam's
+  // column. The outline slides out below it, and it stays where it is as a
+  // back arrow, so opening and closing are the same click in the same place.
+  const outlineToggle = (
+    <button
+      type="button"
+      className="exam-outline-toggle"
+      aria-label={outlineOpen ? 'Hide Exam Outline' : 'Show Exam Outline'}
+      title={outlineOpen ? 'Hide outline' : 'Show outline'}
+      aria-expanded={outlineOpen}
+      aria-controls="exam-outline"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('outline', !outlineOpen)}
+    >
+      {outlineOpen ? <ArrowLeft aria-hidden="true" /> : <List aria-hidden="true" />}
+    </button>
+  )
+  const removeDropActive = drag.source?.pane === 'exam-draft' && drag.intent?.kind === 'remove'
+
+  // This bar belongs to the Exam, and stops where the Question Bank Pane
+  // begins. The mark is the way home and the name sits beside it, where a
+  // document's name sits — the same name that is printed on the page's own
+  // title line, and the same field: typing in either is typing the Exam's name.
+  const documentBar = (
+        <header className="document-bar">
+          <div className="document-identity">
+            <button
+              type="button"
+              className="editor-home-mark"
+              aria-label="Test Parrot home"
+              title="Home"
+              onClick={onHome}
+            >
+              <img className="app-logo" src="/logo.png" alt="" width={36} height={36} />
+            </button>
+            <div className="document-title-stack">
+              <input
+                aria-label="Exam name"
+                className="document-title"
+                value={state.workingCopy.title}
+                disabled={isHistoricalBrowsing}
+                placeholder="Untitled Exam"
+                onChange={(event) => store.setTitle(event.target.value)}
+              />
+              <nav className="document-menus" aria-label="Exam menus">
+                {DOCUMENT_MENUS.map((kind) => (
+                  <button
+                    key={kind}
+                    type="button"
+                    className="document-menu-button"
+                    aria-haspopup="menu"
+                    aria-expanded={documentMenu?.kind === kind}
+                    onClick={(event) => {
+                      const bounds = event.currentTarget.getBoundingClientRect()
+                      setDocumentMenu((current) => current?.kind === kind
+                        ? null
+                        : { kind, point: { x: bounds.left, y: bounds.bottom + 4 } })
+                    }}
+                  >
+                    {DOCUMENT_MENU_LABELS[kind]}
+                  </button>
+                ))}
+              </nav>
+            </div>
+          </div>
+          <div className="header-actions">
+            <div className="document-edit-actions" aria-label="Editing actions">
+              <button
+                type="button"
+                className="toolbar-icon-button"
+                aria-label="Undo"
+                title="Undo (Ctrl/Cmd+Z)"
+                disabled={isHistoricalBrowsing || !store.canUndo()}
+                onClick={() => {
+                  if (!isHistoricalBrowsing) store.undo()
+                }}
+              >
+                <Undo2 />
+              </button>
+              <button
+                type="button"
+                className="toolbar-icon-button"
+                aria-label="Redo"
+                title="Redo (Ctrl/Cmd+Shift+Z)"
+                disabled={isHistoricalBrowsing || !store.canRedo()}
+                onClick={() => {
+                  if (!isHistoricalBrowsing) store.redo()
+                }}
+              >
+                <Redo2 />
+              </button>
+            </div>
+            {/* A mark, not a sentence. It changes on every keystroke, and four
+                different sentences in a flex row that wraps means the whole bar
+                reflowing under the teacher's hands while they type. The text is
+                still there — in the tooltip, and announced to a screen reader —
+                but the slot it lives in never changes size. */}
+            <WorkingCopyStatus dirty={state.dirty} backupStatus={backupStatus} />
+            <button
+              ref={historyButton}
+              type="button"
+              className="toolbar-icon-button"
+              aria-label="Export History"
+              title="Export History"
+              aria-expanded={historyOpen}
+              aria-controls="export-history"
+              onClick={() => setHistoryOpen((open) => !open)}
+            >
+              <History aria-hidden="true" />
+            </button>
+            {/* Save and Export stay available while a change is still being
+                backed up — both wait for it — so they never flicker off and on
+                with every edit; only a failed backup holds them. */}
+            <button
+              type="button"
+              className="primary-button"
+              aria-label="Save"
+              disabled={isHistoricalBrowsing || !state.dirty || backupStatus === 'failed'}
+              onClick={() => void store.save()}
+            >
+              Save
+            </button>
+            <button
+              ref={exportButton}
+              type="button"
+              className="secondary-button"
+              disabled={backupStatus === 'failed' || isHistoricalBrowsing}
+              aria-haspopup="dialog"
+              aria-expanded={exportDialog !== null}
+              onClick={() => openExport()}
+            >
+              Export
+            </button>
+            {/* The one control that opens and closes the Question Bank Pane is
+                always the top-right-most: here after Export while the pane is
+                closed, and at the end of the pane's tab strip while it is open. */}
+            {!bankOpen && bankToggle}
+          </div>
+        </header>
+  )
+
   return (
     <>
       {launchError && <p className="home-error editor-launch-error" role="alert">{launchError}</p>}
-      {/* This bar belongs to the Exam. The mark is the way home and the name
-          sits beside it, where a document's name sits — the same name that is
-          printed on the page's own title line, and the same field: typing in
-          either is typing the Exam's name. */}
       <div className="editor-shell">
-      <header className="document-bar">
-        <div className="document-identity">
-          <button
-            type="button"
-            className="editor-home-mark"
-            aria-label="Test Parrot home"
-            title="Home"
-            onClick={onHome}
-          >
-            <img className="app-logo" src="/logo.png" alt="" width={36} height={36} />
-          </button>
-          <div className="document-title-stack">
-            <input
-              aria-label="Exam name"
-              className="document-title"
-              value={state.workingCopy.title}
-              disabled={isHistoricalBrowsing}
-              placeholder="Untitled Exam"
-              onChange={(event) => store.setTitle(event.target.value)}
-            />
-            <nav className="document-menus" aria-label="Exam menus">
-              {DOCUMENT_MENUS.map((kind) => (
-                <button
-                  key={kind}
-                  type="button"
-                  className="document-menu-button"
-                  aria-haspopup="menu"
-                  aria-expanded={documentMenu?.kind === kind}
-                  onClick={(event) => {
-                    const bounds = event.currentTarget.getBoundingClientRect()
-                    setDocumentMenu((current) => current?.kind === kind
-                      ? null
-                      : { kind, point: { x: bounds.left, y: bounds.bottom + 4 } })
-                  }}
-                >
-                  {DOCUMENT_MENU_LABELS[kind]}
-                </button>
-              ))}
-            </nav>
-          </div>
-        </div>
-        <div className="header-actions">
-          <div className="document-edit-actions" aria-label="Editing actions">
-            <button
-              type="button"
-              className="toolbar-icon-button"
-              aria-label="Undo"
-              title="Undo (Ctrl/Cmd+Z)"
-              disabled={isHistoricalBrowsing || !store.canUndo()}
-              onClick={() => {
-                if (!isHistoricalBrowsing) store.undo()
-              }}
-            >
-              <Undo2 />
-            </button>
-            <button
-              type="button"
-              className="toolbar-icon-button"
-              aria-label="Redo"
-              title="Redo (Ctrl/Cmd+Shift+Z)"
-              disabled={isHistoricalBrowsing || !store.canRedo()}
-              onClick={() => {
-                if (!isHistoricalBrowsing) store.redo()
-              }}
-            >
-              <Redo2 />
-            </button>
-          </div>
-          {/* A mark, not a sentence. It changes on every keystroke, and four
-              different sentences in a flex row that wraps means the whole bar
-              reflowing under the teacher's hands while they type. The text is
-              still there — in the tooltip, and announced to a screen reader —
-              but the slot it lives in never changes size. */}
-          <WorkingCopyStatus dirty={state.dirty} backupStatus={backupStatus} />
-          <button
-            ref={historyButton}
-            type="button"
-            className="toolbar-icon-button"
-            aria-label="Export History"
-            title="Export History"
-            aria-expanded={historyOpen}
-            aria-controls="export-history"
-            onClick={() => setHistoryOpen((open) => !open)}
-          >
-            <History aria-hidden="true" />
-          </button>
-          {/* Save and Export stay available while a change is still being
-              backed up — both wait for it — so they never flicker off and on
-              with every edit; only a failed backup holds them. */}
-          <button
-            type="button"
-            className="primary-button"
-            aria-label="Save"
-            disabled={isHistoricalBrowsing || !state.dirty || backupStatus === 'failed'}
-            onClick={() => void store.save()}
-          >
-            Save
-          </button>
-          <button
-            ref={exportButton}
-            type="button"
-            className="secondary-button"
-            disabled={backupStatus === 'failed' || isHistoricalBrowsing}
-            aria-haspopup="dialog"
-            aria-expanded={exportDialog !== null}
-            onClick={() => openExport()}
-          >
-            Export
-          </button>
-        </div>
-      </header>
 
       {documentMenu && <ContextMenu
         point={documentMenu.point}
@@ -2873,22 +2987,35 @@ function ExamEditor({
         />
       )}
 
-      {/* The split authoring workspace: the Question Bank beside the rendered
-          Working Copy. The bank opens as the narrower pane — it is picked from
-          rather than read — and the divider moves. */}
+      {/* The split authoring workspace: the Question Bank Pane beside the
+          Exam's column. The bank opens as the narrower pane — it is picked from
+          rather than read — the divider moves, and the pane closes. */}
       <WorkspaceSplit
+        bankOpen={bankOpen}
+        animate={panes.loaded}
         initialBankPercent={bankPercent}
         onBankPercentChange={(percent) => {
           setBankPercent(percent)
           void bankWorkspaces.updatePane({ examId }, percent)
         }}
         bank={
-          <div
+          <aside
+            id="question-bank-pane"
             className="question-bank-authoring"
-            inert={isHistoricalBrowsing || undefined}
-            aria-hidden={isHistoricalBrowsing || undefined}
+            aria-label="Question Bank Pane"
+            data-pane-sheet=""
+            // Released over the open pane, a question carried off the Exam is
+            // Removed from it. A closed pane is no target at all.
+            data-remove-drop-zone={bankOpen && !isHistoricalBrowsing ? '' : undefined}
+            data-remove-over={removeDropActive ? 'true' : undefined}
+            inert={isHistoricalBrowsing || !bankOpen || undefined}
+            aria-hidden={isHistoricalBrowsing || !bankOpen || undefined}
           >
+          {removeDropActive && <div className="bank-remove-drop" aria-hidden="true">
+            <span>Drop to remove from exam</span>
+          </div>}
           <QuestionBankTabsPane
+            tabsTrailing={bankToggle}
             context={{ examId }}
             service={bankWorkspaces}
             onImportBank={onImportBank}
@@ -2896,10 +3023,6 @@ function ExamEditor({
             onQuestionsChange={store.syncCanonicalQuestions}
             onAddToExam={addToWorkingCopy}
             onAddManyToExam={addManyToWorkingCopy}
-            onRemoveFromExam={(questionId) => {
-              store.removeFromWorkingCopy([questionId])
-              if (selection.isSelected(questionId)) selection.toggle(questionId)
-            }}
             workspaceDrag={drag}
             resourceRevision={bankRevision + bankLibraryRevision}
             examsService={workspaces}
@@ -2912,10 +3035,29 @@ function ExamEditor({
               setBankRevision((revision) => revision + 1)
             }}
           />
-          </div>
+          </aside>
         }
-        workingCopy={
+        exam={
           <>
+          {documentBar}
+          <div className="exam-body" data-outline-open={outlineOpen ? 'true' : undefined}>
+          {outlineToggle}
+          <div
+            id="exam-outline"
+            className="exam-outline-pane"
+            data-pane-sheet=""
+            data-open={outlineOpen ? 'true' : 'false'}
+            inert={isHistoricalBrowsing || !outlineOpen || undefined}
+            aria-hidden={!outlineOpen || undefined}
+          >
+            {outlineOpen && <ExamOutline
+              exam={exam}
+              arrangement={arrangement}
+              drag={drag}
+              onReveal={goToQuestion}
+            />}
+          </div>
+          <div className="editor-output">
             <div
               className="draft-document"
               // The drawer is itself historical browsing, so the exposed part
@@ -2932,6 +3074,7 @@ function ExamEditor({
             drag={drag}
             revealQuestionId={revealQuestionId}
             onRevealed={clearReveal}
+            revealAlignment={revealAlignment}
             onTitleChange={(title) => store.setTitle(title)}
             onSectionHeadingChange={(sectionId, change) => store.setSectionHeading(sectionId, change)}
             onMoveSection={(sectionId, direction) => store.moveSection(sectionId, direction)}
@@ -2998,6 +3141,8 @@ function ExamEditor({
               />
             </div>
             <Footer />
+          </div>
+          </div>
           </>
         }
       />
