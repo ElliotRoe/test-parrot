@@ -37,6 +37,9 @@ export type QuestionBankFilter = {
   /** Exact, trimmed Topic strings — the ones `topicOptions` offered. */
   topics: readonly string[]
   sort: QuestionBankSort
+  /** Sorts applied after `sort`, in order, among Questions it leaves equal.
+   *  Absent on a filter saved before there could be more than one. */
+  thenBy?: readonly QuestionBankSort[]
 }
 
 /** The unfiltered bank: every question, newest first. */
@@ -145,25 +148,34 @@ export function browseQuestionBank(
     if (matches(question, filter)) shown.push(question)
   }
 
-  switch (filter.sort ?? 'newest') {
-    case 'type':
-      return shown.sort((left, right) => TYPE_RANK[left.type] - TYPE_RANK[right.type])
-    case 'difficulty':
-      return shown.sort((left, right) =>
-        DIFFICULTY_RANK[left.difficulty ?? 'unspecified']
-        - DIFFICULTY_RANK[right.difficulty ?? 'unspecified'],
-      )
-    case 'topic':
-      return shown.sort((left, right) => {
+  // Newest first is where every order starts, and what breaks every tie.
+  const age = new Map(shown.map((question, index) => [question, index]))
+  const compare = (sort: QuestionBankSort) => (left: Question, right: Question): number => {
+    switch (sort) {
+      case 'type':
+        return TYPE_RANK[left.type] - TYPE_RANK[right.type]
+      case 'difficulty':
+        return DIFFICULTY_RANK[left.difficulty ?? 'unspecified']
+          - DIFFICULTY_RANK[right.difficulty ?? 'unspecified']
+      case 'topic': {
         const leftTopic = firstTopic(left)
         const rightTopic = firstTopic(right)
         if (leftTopic === null) return rightTopic === null ? 0 : 1
         if (rightTopic === null) return -1
         return leftTopic.localeCompare(rightTopic)
-      })
-    case 'newest':
-      return shown
-    case 'oldest':
-      return shown.reverse()
+      }
+      case 'newest':
+        return age.get(left)! - age.get(right)!
+      case 'oldest':
+        return age.get(right)! - age.get(left)!
+    }
   }
+  const sorts = [filter.sort ?? 'newest', ...(filter.thenBy ?? [])].map(compare)
+  return shown.sort((left, right) => {
+    for (const by of sorts) {
+      const order = by(left, right)
+      if (order !== 0) return order
+    }
+    return 0
+  })
 }

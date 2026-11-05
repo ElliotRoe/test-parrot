@@ -248,7 +248,7 @@ test('an Exam offers composition from banks but not direct creation or automatic
   await newExam(page)
   await openBankTab(page, /Biology/)
 
-  await expect(page.getByRole('button', { name: 'Add Question' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New question' })).toBeVisible()
   await bank(page).getByRole('button', { name: 'Add Describe mitosis. to the exam' }).click()
   await page.locator('.exam-question').click({ button: 'right' })
   await expect(page.getByRole('menuitem', { name: 'Replace with equivalents' })).toHaveCount(0)

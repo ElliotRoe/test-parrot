@@ -1,25 +1,24 @@
 // How the Question Bank Pane is searched, filtered and sorted.
 //
-// A query bar in the manner of a Notion database: a search box, then two
-// quiet icon buttons — Filter and Sort — that each open a small menu. What is
-// set shows as chips on a line of their own beneath, which is not there at
-// all while nothing is set. A chip opens its own menu to change it, and its ×
-// takes it away. Nothing here is authoring: the filter is the workspace's.
+// A query bar in the manner of a Notion database: a search box, then Filter
+// and Sort as quiet icon buttons. What is set shows on a line of its own
+// beneath, under a soft rule — the sort first, then a short rule, then each
+// filter as a chip naming its values, and a "+ Filter" to add another — and
+// that line is not there at all while nothing is set. A chip opens a card to
+// change what it holds; a filter chip's × takes it away. Newest first is the
+// order with nothing set, so it is never shown as a sort of its own. Nothing
+// here is authoring: the filter is the workspace's.
 
 import { useEffect, useLayoutEffect, useRef, useState, type ReactNode } from 'react'
 import { createPortal } from 'react-dom'
-import { ArrowUpDown, Check, ChevronDown, ListFilter, Search, X } from 'lucide-react'
+import { ArrowUpDown, ChevronDown, ListFilter, Plus, Search, X } from 'lucide-react'
 import {
   DIFFICULTY_OPTIONS,
   SORT_OPTIONS,
   TYPE_OPTIONS,
   type FilterOption,
 } from './question-bank-filter-options'
-import {
-  NO_FILTER,
-  type QuestionBankFilter,
-  type QuestionBankSort,
-} from './question-bank-view'
+import type { QuestionBankFilter, QuestionBankSort } from './question-bank-view'
 
 type Category = 'types' | 'difficulties' | 'topics'
 
@@ -30,24 +29,42 @@ const CATEGORY_LABELS: Record<Category, string> = {
 }
 const CATEGORIES: readonly Category[] = ['types', 'difficulties', 'topics']
 
-/** The gap a menu keeps from the window's edge, and its width. */
+/** The gap a card keeps from the window's edge, and its width. */
 const MARGIN = 8
-const MENU_WIDTH = 220
+const MENU_WIDTH = 230
 
 type Open =
   | { kind: 'filter' }
   | { kind: 'values'; category: Category }
   | { kind: 'sort' }
 
-/** A small menu anchored under a control, portalled so the pane's own
+const sortLabel = (sort: QuestionBankSort) =>
+  SORT_OPTIONS.find((option) => option.value === sort)?.label ?? sort
+
+/** The sorts the teacher has set, in order — none while the bank is in its
+ *  own order, newest first. */
+function sortsOf(filter: QuestionBankFilter): QuestionBankSort[] {
+  const sorts = [filter.sort ?? 'newest', ...(filter.thenBy ?? [])]
+  return sorts.length === 1 && sorts[0] === 'newest' ? [] : sorts
+}
+
+/** The filter with exactly these sorts set. */
+function withSorts(filter: QuestionBankFilter, sorts: readonly QuestionBankSort[]): QuestionBankFilter {
+  const [sort = 'newest', ...thenBy] = sorts
+  const { thenBy: _previous, ...rest } = filter
+  void _previous
+  return { ...rest, sort, ...(thenBy.length > 0 ? { thenBy } : {}) }
+}
+
+/** A small card anchored under a control, portalled so the pane's own
  *  clipping cannot cut it off. Closes on Escape and on a press outside. */
-function Menu({ anchor, label, onClose, children }: {
+function Card({ anchor, label, onClose, children }: {
   anchor: HTMLElement
   label: string
   onClose: () => void
   children: ReactNode
 }) {
-  const menu = useRef<HTMLDivElement>(null)
+  const card = useRef<HTMLDivElement>(null)
   const [place, setPlace] = useState<{ left: number; top: number } | null>(null)
 
   useLayoutEffect(() => {
@@ -68,7 +85,7 @@ function Menu({ anchor, label, onClose, children }: {
   useEffect(() => {
     const onPointerDown = (event: PointerEvent) => {
       const target = event.target as Node
-      if (menu.current?.contains(target) || anchor.contains(target)) return
+      if (card.current?.contains(target) || anchor.contains(target)) return
       onClose()
     }
     document.addEventListener('pointerdown', onPointerDown)
@@ -77,20 +94,20 @@ function Menu({ anchor, label, onClose, children }: {
 
   const placed = place !== null
   useEffect(() => {
-    if (placed) menu.current?.querySelector<HTMLElement>('button, input')?.focus()
+    if (placed) card.current?.querySelector<HTMLElement>('button, input')?.focus()
   }, [placed])
 
   if (!place) return null
   return createPortal(
     <div
-      ref={menu}
+      ref={card}
       className="bank-query-menu"
       role="group"
       aria-label={label}
       style={{ left: place.left, top: place.top, width: MENU_WIDTH }}
       onKeyDown={(event) => {
         if (event.key !== 'Escape') return
-        // Closing the menu is the whole of what Escape means while it is
+        // Closing the card is the whole of what Escape means while it is
         // open; the workspace listens for the same key to clear its selection.
         event.stopPropagation()
         onClose()
@@ -108,12 +125,12 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
   /** The Topics actually in the bank, exactly as they were typed. */
   topics: readonly string[]
   onChange: (filter: QuestionBankFilter) => void
-  /** Actions on what the query shows, at the end of the bar. */
+  /** What ends the bar: the pane's New. */
   trailing?: ReactNode
 }) {
   const [open, setOpen] = useState<{ menu: Open; anchor: HTMLElement } | null>(null)
   const close = () => setOpen(null)
-  const sort = filter.sort ?? 'newest'
+  const sorts = sortsOf(filter)
 
   const optionsOf = (category: Category): readonly FilterOption<string>[] =>
     category === 'types'
@@ -126,14 +143,59 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
     onChange({ ...filter, [category]: values })
   const labelOf = (category: Category, value: string) =>
     optionsOf(category).find((option) => option.value === value)?.label ?? value
+  const valuesLabel = (category: Category) =>
+    valuesOf(category).map((value) => labelOf(category, value)).join(', ')
 
   const chips = CATEGORIES.filter((category) => valuesOf(category).length > 0)
-  const sorted = sort !== 'newest'
 
   const openMenu = (menu: Open, anchor: HTMLElement) =>
-    setOpen((current) => current && current.anchor === anchor && current.menu.kind === menu.kind ? null : { menu, anchor })
+    setOpen((current) => current && current.anchor === anchor ? null : { menu, anchor })
+
+  const sortCard = () => {
+    // Newest first is the bank's own order, so once a sort is set it is no
+    // sort to add after it; only what has not been used yet can be added.
+    const addable = sorts.length === 0
+      ? SORT_OPTIONS
+      : SORT_OPTIONS.filter(({ value }) => value !== 'newest' && !sorts.includes(value))
+    return <>
+      {sorts.length > 0 && <>
+        <p className="bank-query-menu-title">Sorted by</p>
+        {sorts.map((sort, index) => (
+          <div className="bank-query-sort-row" key={sort}>
+            <span className="bank-query-sort-order">{index === 0 ? 'Sort' : 'Then'}</span>
+            <span className="bank-query-sort-name">{sortLabel(sort)}</span>
+            <button
+              type="button"
+              className="bank-chip-remove"
+              aria-label={`Remove sort by ${sortLabel(sort)}`}
+              onClick={() => onChange(withSorts(filter, sorts.filter((other) => other !== sort)))}
+            >
+              <X aria-hidden="true" />
+            </button>
+          </div>
+        ))}
+        {addable.length > 0 && <p className="bank-query-menu-title">Then by</p>}
+      </>}
+      {addable.map((option) => (
+        <button
+          type="button"
+          role="menuitem"
+          className="bank-query-item"
+          key={option.value}
+          onClick={() => {
+            // Newest on its own is the order with nothing set.
+            onChange(withSorts(filter, option.value === 'newest' ? [] : [...sorts, option.value]))
+            close()
+          }}
+        >
+          {option.label}
+        </button>
+      ))}
+    </>
+  }
 
   const menuBody = (menu: Open) => {
+    if (menu.kind === 'sort') return sortCard()
     if (menu.kind === 'filter') {
       return CATEGORIES.map((category) => (
         <button
@@ -145,24 +207,6 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
         >
           {CATEGORY_LABELS[category]}
           {valuesOf(category).length > 0 && <span className="bank-query-count">{valuesOf(category).length}</span>}
-        </button>
-      ))
-    }
-    if (menu.kind === 'sort') {
-      return SORT_OPTIONS.map((option) => (
-        <button
-          type="button"
-          role="menuitemradio"
-          aria-checked={sort === option.value}
-          className="bank-query-item"
-          key={option.value}
-          onClick={() => {
-            onChange({ ...filter, sort: option.value as QuestionBankSort })
-            close()
-          }}
-        >
-          {option.label}
-          {sort === option.value && <Check aria-hidden="true" />}
         </button>
       ))
     }
@@ -190,6 +234,9 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
     </>
   }
 
+  const menuLabel = (menu: Open) =>
+    menu.kind === 'values' ? CATEGORY_LABELS[menu.category] : menu.kind === 'sort' ? 'Sort' : 'Filter'
+
   return (
     <div className="bank-query">
       <div className="bank-query-row">
@@ -209,7 +256,6 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
           aria-label="Filter"
           title="Filter"
           aria-haspopup="true"
-          aria-expanded={open?.menu.kind === 'filter' || open?.menu.kind === 'values' && !open.anchor.closest('.bank-chip')}
           data-active={chips.length > 0 ? 'true' : undefined}
           onClick={(event) => openMenu({ kind: 'filter' }, event.currentTarget)}
         >
@@ -221,17 +267,16 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
           aria-label="Sort"
           title="Sort"
           aria-haspopup="true"
-          aria-expanded={open?.menu.kind === 'sort'}
-          data-active={sorted ? 'true' : undefined}
+          data-active={sorts.length > 0 ? 'true' : undefined}
           onClick={(event) => openMenu({ kind: 'sort' }, event.currentTarget)}
         >
           <ArrowUpDown aria-hidden="true" />
         </button>
         {trailing}
       </div>
-      {(chips.length > 0 || sorted) && (
-        <div className="bank-chips" aria-label="Filters and sort">
-          {sorted && (
+      {(chips.length > 0 || sorts.length > 0) && (
+        <div className="bank-chips" aria-label="Sort and filters">
+          {sorts.length > 0 && <>
             <span className="bank-chip" data-kind="sort">
               <button
                 type="button"
@@ -240,29 +285,22 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
                 onClick={(event) => openMenu({ kind: 'sort' }, event.currentTarget)}
               >
                 <ArrowUpDown aria-hidden="true" />
-                {SORT_OPTIONS.find((option) => option.value === sort)?.label}
+                {sorts.length === 1 ? sortLabel(sorts[0]!) : `${sorts.length} sorts`}
                 <ChevronDown aria-hidden="true" />
               </button>
-              <button
-                type="button"
-                className="bank-chip-remove"
-                aria-label="Remove sort"
-                onClick={() => onChange({ ...filter, sort: 'newest' })}
-              >
-                <X aria-hidden="true" />
-              </button>
             </span>
-          )}
+            <span className="bank-chips-rule" aria-hidden="true" />
+          </>}
           {chips.map((category) => (
             <span className="bank-chip" key={category}>
               <button
                 type="button"
                 className="bank-chip-label"
                 aria-haspopup="true"
+                aria-label={`${CATEGORY_LABELS[category]}: ${valuesLabel(category)}`}
                 onClick={(event) => openMenu({ kind: 'values', category }, event.currentTarget)}
               >
-                <span className="bank-chip-name">{CATEGORY_LABELS[category]}:</span>
-                {valuesOf(category).map((value) => labelOf(category, value)).join(', ')}
+                {valuesLabel(category)}
                 <ChevronDown aria-hidden="true" />
               </button>
               <button
@@ -275,25 +313,22 @@ export function BankQueryBar({ filter, topics, onChange, trailing }: {
               </button>
             </span>
           ))}
-          {chips.length > 0 && (
-            <button
-              type="button"
-              className="bank-chips-clear"
-              onClick={() => onChange({ ...NO_FILTER, search: filter.search, sort })}
-            >
-              Clear filters
-            </button>
-          )}
+          <button
+            type="button"
+            className="bank-chips-add"
+            aria-label="Add filter"
+            aria-haspopup="true"
+            onClick={(event) => openMenu({ kind: 'filter' }, event.currentTarget)}
+          >
+            <Plus aria-hidden="true" />
+            Filter
+          </button>
         </div>
       )}
       {open && (
-        <Menu
-          anchor={open.anchor}
-          label={open.menu.kind === 'values' ? CATEGORY_LABELS[open.menu.category] : open.menu.kind === 'sort' ? 'Sort' : 'Filter'}
-          onClose={close}
-        >
+        <Card anchor={open.anchor} label={menuLabel(open.menu)} onClose={close}>
           {menuBody(open.menu)}
-        </Menu>
+        </Card>
       )}
     </div>
   )

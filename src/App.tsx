@@ -1688,7 +1688,7 @@ function QuestionBankTabsPane({
         title="Open Question Bank"
         disabled={!hydrated}
         onClick={() => void openPicker()}
-      ><Plus aria-hidden="true" /><span aria-hidden="true">Open</span></button>}
+      ><Plus aria-hidden="true" /><span aria-hidden="true">Bank</span></button>}
     </div>
     </header>
     {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}

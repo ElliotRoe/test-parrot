@@ -410,17 +410,23 @@ export function QuestionBankPane({
   })
 
   // Beside an Exam the bank is queried as a Notion database is: a search box,
-  // Filter and Sort, and what is set as chips beneath.
-  const addAll = onAddManyToWorkingCopy && (
+  // Filter and Sort, what is set as chips beneath, and New at the end. Adding
+  // everything shown is Cmd/Ctrl-A and a drag, as for any selection.
+  const newQuestion = onCreate && (
     <button
       type="button"
-      className="bank-query-add-all"
-      title={filtered ? 'Add all matching questions to the exam' : 'Add all questions to the exam'}
-      disabled={addableQuestions.length === 0}
-      onClick={() => onAddManyToWorkingCopy(addableQuestions.map(({ id }) => id))}
+      className="primary-button bank-query-new"
+      aria-label="New question"
+      aria-haspopup="menu"
+      onClick={(event) => {
+        // Below the button and aligned with it, so the list of types reads as
+        // belonging to the control that asked for it.
+        const bounds = event.currentTarget.getBoundingClientRect()
+        onCreate({ x: bounds.left, y: bounds.bottom + 4 })
+      }}
     >
       <Plus aria-hidden="true" />
-      Add all
+      New
     </button>
   )
   const queryBar = (
@@ -428,7 +434,7 @@ export function QuestionBankPane({
       filter={filter}
       topics={topicOptions(bank)}
       onChange={onFilterChange}
-      trailing={addAll}
+      trailing={newQuestion}
     />
   )
 

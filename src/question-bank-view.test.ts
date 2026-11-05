@@ -146,6 +146,27 @@ describe('the Question Bank a teacher browses', () => {
       unspecified.id,
     ])
   })
+
+  test('a secondary sort orders what the first leaves equal, and newest first breaks the last tie', () => {
+    const easyGeometry = question('Easy geometry', { difficulty: 'easy', topics: ['Geometry'] })
+    const easyAlgebra = question('Easy algebra', { difficulty: 'easy', topics: ['Algebra'] })
+    const hardAlgebra = question('Hard algebra', { difficulty: 'hard', topics: ['Algebra'] })
+    const easyAlgebraToo = question('Easy algebra too', { difficulty: 'easy', topics: ['Algebra'] })
+    const bank = banked(easyGeometry, easyAlgebra, hardAlgebra, easyAlgebraToo)
+
+    expect(idsOf(browseQuestionBank(bank, filter({ sort: 'difficulty', thenBy: ['topic'] })))).toEqual([
+      easyAlgebraToo.id,
+      easyAlgebra.id,
+      easyGeometry.id,
+      hardAlgebra.id,
+    ])
+    expect(idsOf(browseQuestionBank(bank, filter({ sort: 'difficulty', thenBy: ['topic', 'oldest'] })))).toEqual([
+      easyAlgebra.id,
+      easyAlgebraToo.id,
+      easyGeometry.id,
+      hardAlgebra.id,
+    ])
+  })
 })
 
 describe('stem search', () => {
