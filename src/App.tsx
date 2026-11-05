@@ -131,7 +131,6 @@ import { pendingImagesOfQuestions, withStoredPictures, type PendingImageResoluti
 import {
   AlignCenter,
   ArrowLeft,
-  ChevronsRight,
   AlignLeft,
   BookOpenText,
   Captions,
@@ -2601,23 +2600,37 @@ function ExamEditor({
     }
   }
 
-  // The Question Bank Pane's one control, at the window's bottom right: the
-  // bank's icon while the pane is closed, and — the pane slid out beside it —
-  // the arrow that sends it back, in the same place, so opening and closing
-  // are the same click.
-  const bankToggle = (
+  // The Question Bank Pane's two controls, each in the top-right corner of
+  // its own bar: the pane's X, which stays an X as the pane slides away with
+  // it, and — once it is closed — the block at the Exam bar's end, its whole
+  // height and width one button, behind a rule as the pane is behind its
+  // divider.
+  const bankClose = (
     <button
       type="button"
-      className="bank-dock-toggle"
-      aria-label={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
-      title={bankOpen ? 'Hide Question Bank' : 'Show Question Bank'}
+      className="toolbar-icon-button pane-toggle"
+      aria-label="Hide Question Bank"
+      title="Hide Question Bank"
       aria-expanded={bankOpen}
       aria-controls="question-bank-pane"
       data-pane-toggle=""
-      data-open={bankOpen ? 'true' : 'false'}
-      onClick={() => setPaneOpen('bank', !bankOpen)}
+      onClick={() => setPaneOpen('bank', false)}
     >
-      {bankOpen ? <ChevronsRight aria-hidden="true" /> : <Database aria-hidden="true" />}
+      <X aria-hidden="true" />
+    </button>
+  )
+  const bankShow = (
+    <button
+      type="button"
+      className="bank-show-slot"
+      aria-label="Show Question Bank"
+      title="Show Question Bank"
+      aria-expanded={bankOpen}
+      aria-controls="question-bank-pane"
+      data-pane-toggle=""
+      onClick={() => setPaneOpen('bank', true)}
+    >
+      <Database aria-hidden="true" />
     </button>
   )
   // The Exam Outline's toggle, at a fixed place at the left of the Exam's
@@ -2756,6 +2769,7 @@ function ExamEditor({
             >
               Export
             </button>
+            {!bankOpen && bankShow}
           </div>
         </header>
   )
@@ -3020,6 +3034,7 @@ function ExamEditor({
             <span>Drop to remove from exam</span>
           </div>}
           <QuestionBankTabsPane
+            tabsTrailing={bankClose}
             context={{ examId }}
             service={bankWorkspaces}
             onImportBank={onImportBank}
@@ -3165,8 +3180,6 @@ function ExamEditor({
         }
       />
       </div>
-
-      {bankToggle}
 
       {varySummary && (
         <p className="vary-summary" role="status" aria-live="polite">

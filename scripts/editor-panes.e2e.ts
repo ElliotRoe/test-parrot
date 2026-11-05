@@ -104,20 +104,15 @@ async function centreOf(locator: Locator) {
 test.describe('the Question Bank Pane', () => {
   test('its one toggle closes and reopens it, and each Exam remembers which', async ({ page }) => {
     await openWorkspace(page)
-    // A new Exam starts with the pane open. Its one control sits at the
-    // window's bottom right, and stays there as it opens and closes the pane.
+    // A new Exam starts with the pane open; its X is the top-right control.
     await expect(bank(page)).toBeVisible()
-    const hide = page.getByRole('button', { name: 'Hide Question Bank' })
-    const at = (await hide.boundingBox())!
-    const viewport = page.viewportSize()!
-    expect(at.x + at.width).toBeGreaterThan(viewport.width - 80)
-    expect(at.y + at.height).toBeGreaterThan(viewport.height - 80)
-
-    await hide.click()
+    await bankPane(page).getByRole('button', { name: 'Hide Question Bank' }).click()
     await expect(bank(page)).toBeHidden()
-    const show = page.getByRole('button', { name: 'Show Question Bank' })
+    // Closed, the Exam's bar runs the full width, ending in the bank's button.
+    const show = page.getByRole('banner').getByRole('button', { name: 'Show Question Bank' })
     await expect(show).toBeVisible()
-    expect(await show.boundingBox()).toEqual(at)
+    const exportBox = (await page.getByRole('button', { name: 'Export', exact: true }).boundingBox())!
+    expect((await show.boundingBox())!.x).toBeGreaterThan(exportBox.x)
 
     await page.reload()
     await expect(page.getByRole('button', { name: 'Show Question Bank' })).toBeVisible()
