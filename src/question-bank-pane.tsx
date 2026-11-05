@@ -36,6 +36,7 @@ import { readingOfQuestion } from './question-reading-content'
 import { stemPreview } from './stem-preview'
 import type { Question, QuestionType } from './exam'
 import { QuestionSummary, UNTITLED } from './question-summary'
+import { BankQueryBar } from './bank-query-bar'
 import type { QuestionBank } from './question-bank'
 import type { WorkspaceDrag } from './use-workspace-drag'
 import { DIFFICULTY_OPTIONS, SORT_OPTIONS, TYPE_OPTIONS, type FilterOption } from './question-bank-filter-options'
@@ -408,6 +409,29 @@ export function QuestionBankPane({
     },
   })
 
+  // Beside an Exam the bank is queried as a Notion database is: a search box,
+  // Filter and Sort, and what is set as chips beneath.
+  const addAll = onAddManyToWorkingCopy && (
+    <button
+      type="button"
+      className="bank-query-add-all"
+      title={filtered ? 'Add all matching questions to the exam' : 'Add all questions to the exam'}
+      disabled={addableQuestions.length === 0}
+      onClick={() => onAddManyToWorkingCopy(addableQuestions.map(({ id }) => id))}
+    >
+      <Plus aria-hidden="true" />
+      Add all
+    </button>
+  )
+  const queryBar = (
+    <BankQueryBar
+      filter={filter}
+      topics={topicOptions(bank)}
+      onChange={onFilterChange}
+      trailing={addAll}
+    />
+  )
+
   const filterBar = (
       <div className="question-bank-filters">
         <div className="bank-search">
@@ -501,8 +525,7 @@ export function QuestionBankPane({
         // questions are all behind the current search.
         allInExam ? inExamLine : filtered ? (
           <p className="question-bank-empty" data-empty="no-matches">
-            No questions match this search and these filters. Clear filters shows
-            the whole Question Bank again.
+            No questions match this search and these filters.
           </p>
         ) : (
           <p className="question-bank-empty" data-empty="no-questions">
@@ -684,7 +707,9 @@ export function QuestionBankPane({
           it: the list of questions is the only thing that scrolls, and the
           scrollbar is as tall as the list rather than as tall as the pane. */}
       <div className="question-bank-toolbar">
-        <header className="question-bank-header">
+        {/* Beside an Exam the pane's own header names the bank and offers
+            nothing to do to it: writing and exporting a bank are its page's. */}
+        {layout === 'page' && <header className="question-bank-header">
           {heading ?? <h2>Question Bank</h2>}
           <div className="question-bank-header-actions">
             {extraActions}
@@ -720,8 +745,9 @@ export function QuestionBankPane({
             {onExport && bank.questions.length === 0 && <span id="empty-bank-export-help" className="sr-only">At least one Question is required.</span>}
             {onExport && exportBlocked && <span id="editing-bank-export-help" className="sr-only">Save or cancel the open Question edit before exporting.</span>}
           </div>
-        </header>
-        {layout === 'rows' && filterBar}
+        </header>}
+        {layout === 'rows' && heading}
+        {layout === 'rows' && queryBar}
       </div>
 
       {layout === 'page' ? (

@@ -145,7 +145,17 @@ button { cursor: pointer; }
 .document-title:hover { border-color: #d8cbbb; }
 .document-title:focus { border-color: #b65f43; box-shadow: inset 0 0 0 1px #b65f43; }
 .header-actions, .dialog-actions { display: flex; align-items: center; gap: 10px; }
-.header-actions { flex: none; justify-content: flex-end; gap: 7px; }
+.header-actions { flex: none; align-self: stretch; justify-content: flex-end; gap: 7px; }
+/* The Question Bank's own button at the bar's end, behind a full-height rule. */
+.bank-show-slot {
+  align-self: stretch; display: flex; align-items: center;
+  margin: 0 -6px 0 6px; padding-left: 12px; border-left: 1px solid var(--divider);
+  animation: bank-show-in 180ms ease;
+}
+.bank-show-slot .pane-toggle { width: 38px; height: 38px; border-radius: 8px; }
+.bank-show-slot .pane-toggle svg { width: 19px; height: 19px; }
+@keyframes bank-show-in { from { opacity: 0; } to { opacity: 1; } }
+@media (prefers-reduced-motion: reduce) { .bank-show-slot { animation: none; } }
 .document-edit-actions { display: flex; align-items: center; gap: 1px; padding-right: 6px; border-right: 1px solid var(--paper-outline); }
 /* Its own width, whatever it is saying. The four states are four different
    sentences, and this changes on every keystroke: as text in a wrapping flex
@@ -529,7 +539,7 @@ button { cursor: pointer; }
 /* Where the sheet runs on under the pane, the pane's edge casts a faint
    shadow over it, so it reads as lying on top rather than cutting it off. */
 .workspace-resizer { position: relative; z-index: 3; transition: box-shadow 160ms ease; }
-.authoring-workspace[data-overlapped] .workspace-resizer { box-shadow: -8px 0 12px -6px rgb(55 42 33 / 24%); }
+.authoring-workspace[data-overlapped] .workspace-resizer { box-shadow: -10px 0 16px -6px rgb(55 42 33 / 38%); }
 .workspace-resizer:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 
 /* ---------------------------------------------------------------------------
@@ -609,12 +619,13 @@ button { cursor: pointer; }
 .bank-tab svg { width: 12px; height: 12px; }
 .bank-tab > button:focus-visible, .open-bank-button:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
 .open-bank-button {
-  display: inline-flex; flex: none; align-self: center; align-items: center; justify-content: center;
-  margin: 0 0 2px 2px; padding: 3px; border: 0; border-radius: 6px;
+  display: inline-flex; flex: none; align-self: center; align-items: center; justify-content: center; gap: 3px;
+  margin: 0 0 2px 4px; padding: 2px 7px 2px 4px; border: 0; border-radius: 6px; font-size: 13px;
   color: #6b5949; background: transparent;
 }
 .open-bank-button:hover:not(:disabled) { color: #3d3027; background: #f0e5d5; }
-.open-bank-button svg { width: 15px; height: 15px; }
+.open-bank-button svg { width: 14px; height: 14px; }
+.open-bank-button { color: #9a8777; }
 .bank-tabs-error { margin: 8px 12px 0; }
 /* The pane with no bank open. It keeps the chrome an open bank has — the
    name stays where it always is — and fills the rest with the dotted ground
@@ -4116,3 +4127,61 @@ button.pop-over-chip-option[aria-pressed='true'] svg { visibility: visible; }
 /* Gone to from the Exam Outline, a question comes to rest just below the top
    of the lane rather than flush against it. */
 .exam-workspace .exam-question { scroll-margin-top: 16px; }
+
+/* ---------------------------------------------------------------------------
+   The Question Bank Pane's query bar, in the manner of a Notion database: a
+   search box, then Filter and Sort as quiet icon buttons, and what is set as
+   chips on a line beneath that is only there while something is. */
+.bank-query { display: flex; flex-direction: column; gap: 8px; }
+.bank-query-row { display: flex; align-items: center; gap: 2px; }
+.bank-query-row .bank-search { margin-right: 4px; }
+.bank-query-button, .bank-query-add-all {
+  display: inline-flex; flex: none; align-items: center; justify-content: center;
+  height: 28px; border: 0; border-radius: 6px; color: #6e5b4d; background: transparent;
+}
+.bank-query-button { width: 28px; padding: 0; }
+.bank-query-button svg { width: 15px; height: 15px; stroke-width: 2; }
+.bank-query-button:hover, .bank-query-button[aria-expanded='true'],
+.bank-query-add-all:hover:not(:disabled) { color: #332a24; background: rgb(110 91 77 / 10%); }
+.bank-query-button[data-active] { color: var(--paper-accent); }
+.bank-query-button:focus-visible, .bank-query-add-all:focus-visible { outline: 2px solid #8a6a4c; outline-offset: 1px; }
+/* Adding what the query shows is an action on it, said as quietly as Filter
+   and Sort are, at the bar's end. */
+.bank-query-add-all { gap: 4px; margin-left: 4px; padding: 0 8px; font-size: 13px; font-weight: 600; }
+.bank-query-add-all svg { width: 14px; height: 14px; }
+.bank-query-add-all:disabled { color: #b4a596; cursor: default; }
+.bank-chips { display: flex; flex-wrap: wrap; align-items: center; gap: 6px; }
+.bank-chip {
+  display: inline-flex; align-items: center; min-width: 0; max-width: 100%;
+  border: 1px solid #d9c4ae; border-radius: 999px; color: var(--paper-accent);
+  background: var(--paper-accent-wash); font-size: 12.5px;
+}
+.bank-chip > button { display: inline-flex; align-items: center; border: 0; color: inherit; background: transparent; font: inherit; }
+.bank-chip-label { gap: 4px; min-width: 0; padding: 3px 4px 3px 10px; overflow: hidden; white-space: nowrap; text-overflow: ellipsis; }
+.bank-chip-name { font-weight: 600; }
+.bank-chip-label svg { flex: none; width: 13px; height: 13px; }
+.bank-chip-remove { flex: none; justify-content: center; width: 20px; height: 20px; margin-right: 3px; padding: 0; border-radius: 50%; }
+.bank-chip-remove:hover { background: rgb(159 80 55 / 14%); }
+.bank-chip-remove svg { width: 12px; height: 12px; }
+.bank-chips-clear { padding: 2px 6px; border: 0; color: #7a6a5c; background: transparent; font-size: 12.5px; }
+.bank-chips-clear:hover { color: #332a24; text-decoration: underline; }
+.bank-query-menu {
+  position: fixed; z-index: 900; max-height: 300px; padding: 5px; overflow-y: auto; box-sizing: border-box;
+  border: 1px solid #e0d3c2; border-radius: 8px; background: #fffdf8;
+  box-shadow: 0 8px 24px rgb(91 68 47 / 18%); font-size: 13px;
+}
+.bank-query-item {
+  display: flex; align-items: center; justify-content: space-between; width: 100%;
+  padding: 6px 8px; border: 0; border-radius: 5px; color: #332a24; background: transparent;
+  font: inherit; text-align: left;
+}
+.bank-query-item:hover, .bank-query-item:focus-visible { background: #f2e6d8; outline: none; }
+.bank-query-item svg { width: 14px; height: 14px; color: var(--paper-accent); }
+.bank-query-count {
+  min-width: 18px; padding: 0 5px; border-radius: 999px; color: #fffaf3; background: var(--paper-accent);
+  font-size: 11px; line-height: 18px; text-align: center;
+}
+.bank-query-menu-title { margin: 2px 8px 4px; color: #9a8777; font-size: 11px; font-weight: 600; letter-spacing: .05em; text-transform: uppercase; }
+.bank-query-option { display: flex; align-items: center; gap: 8px; padding: 5px 8px; border-radius: 5px; cursor: pointer; }
+.bank-query-option:hover { background: #f2e6d8; }
+.bank-query-empty { margin: 4px 8px 6px; color: #7a6a5c; }

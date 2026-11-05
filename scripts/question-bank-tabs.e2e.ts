@@ -140,18 +140,23 @@ test('search, difficulty, and topic filters remain independent per bank tab', as
   const biologyTab = page.getByRole('tab', { name: 'Biology' })
   await biologyTab.click()
   await search(page).fill('mitosis')
-  await bank(page).getByRole('button', { name: 'Difficulty' }).click()
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: /^Difficulty/ }).click()
   await page.getByRole('group', { name: 'Difficulty' }).getByText('Hard').click()
-  await bank(page).getByRole('button', { name: 'Topic' }).click()
+  await page.keyboard.press('Escape')
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: /^Topic/ }).click()
   await page.getByRole('group', { name: 'Topic' }).getByText('Cells').click()
+  await page.keyboard.press('Escape')
 
   await chemistryTab.click()
   await expect(chemistryTab).toHaveAttribute('aria-selected', 'true')
   await expect(search(page)).toHaveValue('oxygen')
   await biologyTab.click()
   await expect(search(page)).toHaveValue('mitosis')
-  await expect(bank(page).getByRole('button', { name: 'Difficulty' })).toContainText('1')
-  await expect(bank(page).getByRole('button', { name: 'Topic' })).toContainText('1')
+  // Each tab keeps its own filters, shown as its chips.
+  await expect(bank(page).getByRole('button', { name: /^Difficulty: Hard/ })).toBeVisible()
+  await expect(bank(page).getByRole('button', { name: /^Topic: Cells/ })).toBeVisible()
 })
 
 test('a bare editor refresh restores open tabs, the active bank, and its filter', async ({ page }) => {

@@ -1688,7 +1688,7 @@ function QuestionBankTabsPane({
         title="Open Question Bank"
         disabled={!hydrated}
         onClick={() => void openPicker()}
-      ><Plus /></button>}
+      ><Plus aria-hidden="true" /><span aria-hidden="true">Open</span></button>}
     </div>
     </header>
     {message && <p className="home-error bank-tabs-error" role="alert">{message}</p>}
@@ -2770,7 +2770,9 @@ function ExamEditor({
             {/* The top-right-most control is always the Question Bank Pane's:
                 here after Export, to show it, while it is closed; its own X
                 while it is open. */}
-            {!bankOpen && bankShow}
+            {/* Set off from the Exam's own actions by a rule the bar's full
+                height, as the pane it opens is set off by its divider. */}
+            {!bankOpen && <div className="bank-show-slot">{bankShow}</div>}
           </div>
         </header>
   )

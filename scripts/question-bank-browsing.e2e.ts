@@ -101,7 +101,8 @@ async function openBank(page: Page, questionIds: string[] = []) {
 
 /** Chooses values in one of the bank's filter dropdowns. */
 async function filterBy(page: Page, category: string, ...values: string[]) {
-  await bank(page).getByRole('button', { name: category, exact: true }).click()
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: new RegExp(`^${category}`) }).click()
   for (const value of values) {
     await page.getByRole('checkbox', { name: value, exact: true }).check()
   }
@@ -167,8 +168,7 @@ test('search matches stems only, and clearing it restores the bank', async ({ pa
   await expect(rows(page)).toHaveCount(0)
   await expect(bank(page)).toContainText('No questions match')
 
-  await bank(page).getByRole('button', { name: 'Clear filters' }).click()
-  await expect(search(page)).toHaveValue('')
+  await search(page).fill('')
   await expect(rows(page)).toHaveCount(QUESTIONS.length)
   await expect(rows(page).nth(0)).toContainText('Read the graph')
 })
@@ -272,7 +272,8 @@ test('a filter list stays over the bank rather than the sheet beside it', async 
   // last of them is the one that would hang over the divider and the rendered
   // page — which paint over it, because the bank pane is its own stacking
   // context. Geometry is the claim, so it is measured.
-  await bank(page).getByRole('button', { name: 'Difficulty', exact: true }).click()
+  await bank(page).getByRole('button', { name: 'Filter', exact: true }).click()
+  await page.getByRole('menuitem', { name: /^Difficulty/ }).click()
   const list = page.getByRole('group', { name: 'Difficulty' })
   await expect(list).toBeVisible()
 
