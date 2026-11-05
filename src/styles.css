@@ -4133,3 +4133,8 @@ button.pop-over-chip-option[aria-pressed='true'] svg { visibility: visible; }
 .bank-picker .resource-picker-list > button { display: grid; grid-template-columns: auto minmax(0, 1fr) auto; align-items: center; column-gap: 10px; }
 .bank-picker .resource-picker-list > button > span { grid-column: 2 / -1; }
 .bank-picker .bank-picker-folder > svg:last-child { width: 16px; height: 16px; color: #b8a493; }
+
+.difficulty-spread-legend { gap: 2px 10px; font-size: 11.5px; }
+.difficulty-spread-label-easy { color: var(--easy-ink); }
+.difficulty-spread-label-medium { color: var(--medium-ink); }
+.difficulty-spread-label-hard { color: var(--hard-ink); }

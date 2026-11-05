@@ -30,9 +30,9 @@ import {
 import { AppShell, type Crumb } from './app-shell'
 import { LibraryActionsContext, type LibraryActions } from './library-actions'
 import type { PersistentStorageStatus } from './durable-storage'
-import { DifficultyBadge, TopicBadge } from './badges'
+import { TopicBadge } from './badges'
 import { ContextMenu, type MenuItem, type MenuPoint } from './context-menu'
-import { DIFFICULTIES, type Difficulty, type QuestionType } from './exam'
+import { DIFFICULTIES, DIFFICULTY_LABELS, type Difficulty, type QuestionType } from './exam'
 import {
   refKey,
   refOf,
@@ -161,7 +161,7 @@ function DifficultySpread({ counts, total }: { counts: Partial<Record<Difficulty
         ))}
       </div>
       <div className="difficulty-spread-legend" aria-hidden="true">
-        {shown.map((difficulty) => <span key={difficulty}><DifficultyBadge difficulty={difficulty} /> {counts[difficulty]}</span>)}
+        {shown.map((difficulty) => <span key={difficulty} className={`difficulty-spread-label-${difficulty}`}>{DIFFICULTY_LABELS[difficulty]} {counts[difficulty]}</span>)}
       </div>
     </div>
   )
