@@ -7,7 +7,7 @@ import {
   type AccountManifest,
   type AccountSnapshot,
 } from './account-backup'
-import { STORAGE_NAME, STORAGE_VERSION } from './storage-schema'
+import { OLDEST_RESTORABLE_STORAGE_VERSION, STORAGE_NAME, STORAGE_VERSION } from './storage-schema'
 
 function roundTrip(value: unknown) {
   const binaries = new Map<string, Uint8Array>()
@@ -101,8 +101,8 @@ describe('account backup file', () => {
 
   test('refuses backups whose storage this version cannot read', async () => {
     const older = snapshot({ ...{ exam: {}, image: new Uint8Array([1]), lastOpenedAt: '', active: '' } })
-    older.manifest.storageVersion = STORAGE_VERSION - 1
-    older.manifest.databases[0]!.version = STORAGE_VERSION - 1
+    older.manifest.storageVersion = OLDEST_RESTORABLE_STORAGE_VERSION - 1
+    older.manifest.databases[0]!.version = OLDEST_RESTORABLE_STORAGE_VERSION - 1
     await expect(readAccountBackup(await accountBackupBlob(older))).rejects.toThrow('older Test Parrot')
     const newer = snapshot({ exam: {}, image: new Uint8Array([1]), lastOpenedAt: '', active: '' })
     newer.manifest.storageVersion = STORAGE_VERSION + 1
