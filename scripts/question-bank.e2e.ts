@@ -34,7 +34,8 @@ async function writeQuestion(page: Page, stem: string) {
 
 test('the Question Bank opens beside the Working Copy as the narrower pane', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
 
   await expect(bank(page)).toBeVisible()
 
@@ -47,7 +48,8 @@ test('the Question Bank opens beside the Working Copy as the narrower pane', asy
 
 test('a question written in the bank stays off the exam until it is added', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
 
   await newBankQuestion(page)
   await writeQuestion(page, 'Which is a mammal?')
@@ -69,7 +71,8 @@ test('a question written in the bank stays off the exam until it is added', asyn
 
 test('the slot that says a question is on the exam is also how it comes off', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
 
   await newBankQuestion(page)
   await writeQuestion(page, 'Which is a mammal?')
@@ -89,7 +92,8 @@ test('the slot that says a question is on the exam is also how it comes off', as
 
 test('cancelling the popup leaves the Question Bank and the Working Copy alone', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
 
   await newBankQuestion(page)
   await expect(page.getByRole('dialog', { name: 'Question editor' })).toBeVisible()
@@ -103,7 +107,8 @@ test('cancelling the popup leaves the Question Bank and the Working Copy alone',
 
 test('a refresh restores the Question Bank, the Working Copy and its order', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
 
   await page.getByRole('button', { name: 'Insert your first question' }).click()
   await page.getByRole('menuitem', { name: 'Multiple choice' }).click()
@@ -126,7 +131,8 @@ test('a refresh restores the Question Bank, the Working Copy and its order', asy
 
 test('editing canonical Question Content updates the rendered Working Copy', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
 
   await page.getByRole('button', { name: 'Insert your first question' }).click()
   await page.getByRole('menuitem', { name: 'Multiple choice' }).click()

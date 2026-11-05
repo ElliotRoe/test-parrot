@@ -59,7 +59,8 @@ test('the fresh generation ignores earlier browser authoring data', async ({
   }, legacy)
 
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await page.getByRole('textbox', { name: 'Exam name' }).waitFor()
   await page.evaluate(
     () => (window as unknown as { legacySetup: Promise<unknown> }).legacySetup,
@@ -106,7 +107,8 @@ test('failed normalized write and Save transactions expose no partial state', as
   page,
 }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await page.getByRole('textbox', { name: 'Exam name' }).waitFor()
   const baseline = legacyAuthoringState()
   baseline.workingCopy.title = 'Last complete write'
@@ -159,7 +161,8 @@ test('Question Metadata and bank-only content survive a user-visible reload', as
   page,
 }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await page.getByRole('button', { name: 'Add Question', exact: true }).click()
   await page.getByRole('menuitem', { name: 'Multiple choice' }).click()
   const dialog = page.getByRole('dialog', { name: 'Question editor' })
@@ -190,7 +193,8 @@ test('publication aborts every store when a required Media Asset is absent', asy
   page,
 }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   // A first visit registers the image service worker, which may reload once
   // before it takes control. Wait for application startup rather than running
   // the IndexedDB probe in the navigation that registration replaces.

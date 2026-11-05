@@ -3,7 +3,7 @@
 // or a list, with a ⋮ menu (or a right-click) on each, Shift- and
 // Ctrl/Cmd-click to select several, and drag-and-drop to move them.
 
-import { useCallback, useContext, useEffect, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from 'react'
+import { useCallback, useContext, useEffect, useId, useMemo, useRef, useState, type DragEvent, type MouseEvent, type ReactNode } from 'react'
 import {
   Archive,
   ArrowRightLeft,
@@ -140,13 +140,13 @@ function BankPreview({ entry }: { entry: Extract<LibraryEntry, { kind: 'bank' }>
           {types.map((type) => <li key={type}><span>{SECTION_TITLE[type]}</span> <strong>{bank.typeCounts[type]}</strong></li>)}
         </ul>
       )}
+      {rated > 0 && <DifficultySpread counts={bank.difficultyCounts} total={rated} />}
       {bank.topics.length > 0 && (
         <div className="bank-preview-topics" aria-label="Topics">
           {bank.topics.slice(0, SHOWN_TOPICS).map((topic) => <TopicBadge key={topic} topic={topic} />)}
           {bank.topics.length > SHOWN_TOPICS && <span className="badge">+{bank.topics.length - SHOWN_TOPICS}</span>}
         </div>
       )}
-      {rated > 0 && <DifficultySpread counts={bank.difficultyCounts} total={rated} />}
     </div>
   )
 }
@@ -186,11 +186,14 @@ type ItemHandlers = {
 
 function LibraryItem({ entry, handlers }: { entry: LibraryEntry; handlers: ItemHandlers }) {
   const { layout, selected, dropTarget, location, trash, drag } = handlers
+  const nameId = useId()
   const menuButton = (
     <button
       type="button"
       className="library-item-menu"
-      aria-label={`${entry.name} actions`}
+      aria-label="More actions"
+      aria-describedby={nameId}
+      title="More actions"
       aria-haspopup="menu"
       onClick={(event) => {
         const bounds = event.currentTarget.getBoundingClientRect()
@@ -203,7 +206,7 @@ function LibraryItem({ entry, handlers }: { entry: LibraryEntry; handlers: ItemH
   const name = (
     <span className="library-item-name">
       <EntryIcon kind={entry.kind} />
-      <span className="library-item-title">{entry.name}</span>
+      <span className="library-item-title" id={nameId}>{entry.name}</span>
       {entry.starred && <Star className="library-item-star" aria-label="Starred" />}
       {entry.kind === 'exam' && entry.exam.unsaved && (
         <span className="unsaved-mark" title="Unsaved changes"><TriangleAlert aria-hidden="true" /><span className="sr-only">Unsaved changes</span></span>
@@ -215,7 +218,6 @@ function LibraryItem({ entry, handlers }: { entry: LibraryEntry; handlers: ItemH
       type="button"
       className="library-item-open"
       aria-label={entry.name}
-      aria-describedby={undefined}
       onClick={(event) => handlers.onClick(entry, event)}
     >
       {children}
@@ -265,7 +267,10 @@ function LibraryItem({ entry, handlers }: { entry: LibraryEntry; handlers: ItemH
   if (entry.kind === 'folder') {
     return (
       <li {...common}>
-        {open(name)}
+        {open(<>
+          {name}
+          {trash && <span className="library-card-meta">{trash.daysLeft} days left in Trash</span>}
+        </>)}
         {menuButton}
       </li>
     )

@@ -10,9 +10,10 @@ async function createQuestion(page: Page, stem: string, type = 'Multiple choice'
 
 test('Home creates and independently reopens durable Question Banks', async ({ page }) => {
   await page.goto('/')
-  await expect(page.getByRole('region', { name: 'Question Banks' }).getByRole('button', { name: 'New Question Bank' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New', exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'New Question Bank' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Question Bank' }).click()
   const name = page.getByRole('textbox', { name: 'Question Bank name' })
   await expect(name).toHaveValue('Untitled Question Bank')
   await name.fill('Biology')
@@ -28,14 +29,16 @@ test('Home creates and independently reopens durable Question Banks', async ({ p
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
   await expect(page.getByRole('button', { name: 'Biology' })).toContainText('1 Question')
 
-  await page.getByRole('button', { name: 'New Question Bank' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Question Bank' }).click()
   await name.fill('Chemistry')
   await createQuestion(page, 'What is the symbol for oxygen?', 'Short answer')
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
-  const bankCards = page.getByRole('region', { name: 'Question Banks' }).locator('.question-bank-card')
+  // Home lists by name.
+  const bankCards = page.getByRole('list', { name: 'Exams and Question Banks' }).getByRole('listitem')
   await expect(bankCards).toHaveCount(2)
-  await expect(bankCards.nth(0)).toContainText('Chemistry')
-  await expect(bankCards.nth(1)).toContainText('Biology')
+  await expect(bankCards.nth(0)).toContainText('Biology')
+  await expect(bankCards.nth(1)).toContainText('Chemistry')
 
   await page.getByRole('button', { name: 'Biology' }).click()
   await expect(name).toHaveValue('Biology')
@@ -118,11 +121,13 @@ test('IndexedDB enforces one bank owner and substantive update timestamps', asyn
 
 test('an abandoned placeholder bank is removed, while a renamed empty bank remains', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Question Bank' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Question Bank' }).click()
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
-  await expect(page.getByRole('region', { name: 'Question Banks' }).getByRole('button', { name: 'New Question Bank' })).toBeVisible()
+  await expect(page.getByRole('button', { name: 'New', exact: true })).toBeVisible()
 
-  await page.getByRole('button', { name: 'New Question Bank' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Question Bank' }).click()
   const name = page.getByRole('textbox', { name: 'Question Bank name' })
   await name.fill('Empty but intentional')
   await name.press('Enter')

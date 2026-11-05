@@ -39,7 +39,8 @@ const search = (page: Page) => page.getByRole('searchbox', { name: 'Search quest
 /** The editor edits an Exam, so every tab test starts by opening one. */
 async function newExam(page: Page) {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await page.getByRole('textbox', { name: 'Exam name' }).waitFor()
 }
 
@@ -53,7 +54,7 @@ test('opening a Question Bank goes to its own page and creates no Exam', async (
   await page.goto(`/question-bank?id=${ids.biology}`)
 
   await expect(page.getByRole('textbox', { name: 'Question Bank name' })).toHaveValue('Biology')
-  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Question Banks')
+  await expect(page.getByRole('navigation', { name: 'Breadcrumb' })).toContainText('Home')
   await expect(bank(page)).toContainText('Describe mitosis.')
   // No Exam, and therefore no tabs and nothing to add a Question to.
   await expect(page.getByRole('textbox', { name: 'Exam name' })).toHaveCount(0)
@@ -194,7 +195,9 @@ test('opening an Exam inside the editor carries the current tabs and external re
   await page.getByRole('button', { name: 'Save', exact: true }).click()
   await page.getByRole('button', { name: 'Test Parrot home' }).click()
 
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   await openBankTab(page, /Biology/)
   await openBankTab(page, /Chemistry/)
   await page.getByRole('button', { name: 'File' }).click()
@@ -292,7 +295,7 @@ test('closing an Exam bank tab leaves Questions referenced by the Exam unchanged
 test('a missing bank address reports the problem and returns to the collection', async ({ page }) => {
   await seedBanks(page)
   await page.goto('/question-bank?id=missing-bank')
-  await expect(page).toHaveURL(/\/question-banks$/)
+  await expect(page).toHaveURL(/127\.0\.0\.1:\d+\/$/)
   await expect(page.getByRole('alert')).toHaveText('That Question Bank is unavailable on this device.')
 })
 

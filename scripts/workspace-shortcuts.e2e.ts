@@ -2,7 +2,8 @@ import { expect, test } from '@playwright/test'
 
 test('Ctrl/Cmd+Z undo and Ctrl/Cmd+Shift+Z redo workspace edits', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
   const title = page.getByRole('textbox', { name: 'Exam name' })
   const original = await title.inputValue()
 
@@ -19,7 +20,8 @@ test('Ctrl/Cmd+Z undo and Ctrl/Cmd+Shift+Z redo workspace edits', async ({ page 
 
 test('Ctrl/Cmd+Enter saves the question dialog', async ({ page }) => {
   await page.goto('/')
-  await page.getByRole('button', { name: 'New Exam' }).first().click()
+  await page.getByRole('button', { name: 'New', exact: true }).click()
+  await page.getByRole('menuitem', { name: 'New Exam' }).click()
 
   await page.getByRole('button', { name: 'Insert your first question' }).click()
   await page.getByRole('menuitem', { name: 'Multiple choice' }).click()
