@@ -65,14 +65,32 @@ export type QuestionBankTabsWorkspace = {
   openBankIds: string[]
   activeBankId: string | null
   filters: Record<string, QuestionBankFilter>
-  pane: { bankPercent: number }
+  pane: EditorPanes
 }
+
+/** How the editor's two collapsible panes stand for one Exam: the Question
+ *  Bank Pane's width and whether it is open, and whether the Exam Outline is.
+ *  A record written before either could close has neither flag, and reads as
+ *  a new Exam does: the bank open, the outline closed. */
+export type EditorPanes = {
+  bankPercent: number
+  bankOpen: boolean
+  outlineOpen: boolean
+}
+
+const DEFAULT_PANES: EditorPanes = { bankPercent: 33, bankOpen: true, outlineOpen: false }
+
+const copyPanes = (pane: Partial<EditorPanes> | undefined): EditorPanes => ({
+  bankPercent: pane?.bankPercent ?? DEFAULT_PANES.bankPercent,
+  bankOpen: pane?.bankOpen ?? DEFAULT_PANES.bankOpen,
+  outlineOpen: pane?.outlineOpen ?? DEFAULT_PANES.outlineOpen,
+})
 
 export const DEFAULT_BANK_TABS_WORKSPACE: QuestionBankTabsWorkspace = {
   openBankIds: [],
   activeBankId: null,
   filters: {},
-  pane: { bankPercent: 33 },
+  pane: { ...DEFAULT_PANES },
 }
 
 type StoredTabsWorkspace = QuestionBankTabsWorkspace & {
@@ -99,7 +117,7 @@ const copyTabsWorkspace = (workspace: QuestionBankTabsWorkspace): QuestionBankTa
   filters: Object.fromEntries(
     Object.entries(workspace.filters).map(([id, filter]) => [id, copyFilter(filter)]),
   ),
-  pane: { ...workspace.pane },
+  pane: copyPanes(workspace.pane),
 })
 
 export function openBankTab(
@@ -407,7 +425,18 @@ export function createQuestionBankWorkspaceService(
     async updatePane(context: BankWorkspaceContext, bankPercent: number) {
       return mutateWorkspace(context, (workspace) => ({
         ...copyTabsWorkspace(workspace),
-        pane: { bankPercent: Math.min(80, Math.max(20, bankPercent)) },
+        pane: { ...copyPanes(workspace.pane), bankPercent: Math.min(80, Math.max(20, bankPercent)) },
+      }))
+    },
+    /** Opens or closes the Question Bank Pane or the Exam Outline for this
+     *  Exam, keeping everything else about its workspace. */
+    async updatePanes(
+      context: BankWorkspaceContext,
+      change: Partial<Pick<EditorPanes, 'bankOpen' | 'outlineOpen'>>,
+    ) {
+      return mutateWorkspace(context, (workspace) => ({
+        ...copyTabsWorkspace(workspace),
+        pane: { ...copyPanes(workspace.pane), ...change },
       }))
     },
     async carryWorkspace(from: BankWorkspaceContext, to: BankWorkspaceContext) {

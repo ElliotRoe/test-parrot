@@ -2,6 +2,8 @@ import { describe, expect, test } from 'bun:test'
 import {
   dropIntent,
   landsOnRelease,
+  outlineDropIntent,
+  removeIntent,
   type DragSource,
   type DropCandidate,
   type DropField,
@@ -287,5 +289,46 @@ describe('a Working Copy question moved within it', () => {
 
   test('an Exam with nothing on it offers a move nothing', () => {
     expect(dropIntent(fromExamWorkingCopy, field([]), { x: 400, y: 150 })).toBeNull()
+  })
+})
+
+describe('dropping on the Question Bank Pane', () => {
+  test('a question carried off the Exam is Removed from it', () => {
+    expect(removeIntent(fromExamWorkingCopy)).toEqual({ kind: 'remove', opensBelow: null })
+    expect(landsOnRelease(removeIntent(fromExamWorkingCopy))).toBe(true)
+  })
+
+  test('a question carried out of the bank goes back and changes nothing', () => {
+    expect(removeIntent(fromQuestionBank)).toBeNull()
+  })
+})
+
+describe('dropping on the Exam Outline', () => {
+  // Outline rows: two in one Section, one in the next, 30px tall each.
+  const outline = {
+    candidates: [
+      { questionId: 'q1', sectionId: 'mc', before: { y: 100, left: 0, right: 260 }, after: { y: 130, left: 0, right: 260 } },
+      { questionId: 'q2', sectionId: 'mc', before: { y: 130, left: 0, right: 260 }, after: { y: 160, left: 0, right: 260 } },
+      { questionId: 'q3', sectionId: 'sa', before: { y: 190, left: 0, right: 260 }, after: { y: 220, left: 0, right: 260 } },
+    ],
+    emptySections: [],
+  }
+
+  test('moves a question in among the others, across Sections too', () => {
+    expect(outlineDropIntent(fromExamWorkingCopy, outline, { x: 100, y: 218 })).toEqual({
+      kind: 'insert', targetQuestionId: 'q3', placement: 'after', opensBelow: null,
+    })
+  })
+
+  test('never offers a new Section at the foot of one', () => {
+    // Below q1, the last question in its Section once q2 is carried.
+    expect(outlineDropIntent(fromExamWorkingCopy, outline, { x: 100, y: 132 })?.opensBelow).toBeNull()
+  })
+
+  test('drops into an empty Section', () => {
+    expect(outlineDropIntent(fromExamWorkingCopy, {
+      ...outline,
+      emptySections: [{ sectionId: 'tf', box: { top: 240, bottom: 270, left: 0, right: 260 } }],
+    }, { x: 100, y: 250 })).toEqual({ kind: 'section-end', sectionId: 'tf', opensBelow: null })
   })
 })

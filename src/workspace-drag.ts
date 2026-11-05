@@ -91,6 +91,9 @@ export type DropIntent =
     }
   | { kind: 'section-end'; sectionId: string; opensBelow: string | null }
   | { kind: 'new-section'; afterSectionId: string | null; armed: boolean; opensBelow: string | null }
+  /** Over the Question Bank Pane, a question carried off the Exam is Removed
+   *  from it. Never aimed: anywhere over the open pane is the same. */
+  | { kind: 'remove'; opensBelow: string | null }
 
 /** What one rendered question draws while a gesture is in flight: an insertion
  *  line on one of its edges, or nothing. */
@@ -111,6 +114,27 @@ export function dropStateOf(
  *  the pointer is not over promises nothing yet. */
 export function landsOnRelease(intent: DropIntent | null): boolean {
   return intent !== null && (intent.kind !== 'new-section' || intent.armed)
+}
+
+/** Where releasing over the Question Bank Pane would land: a question carried
+ *  off the Exam is Removed from it; one carried out of the bank is put back
+ *  where it came from, which changes nothing. */
+export function removeIntent(source: DragSource): DropIntent | null {
+  return source.pane === 'exam-draft' ? { kind: 'remove', opensBelow: null } : null
+}
+
+/** The same drop, read off the Exam Outline rather than the page. The
+ *  outline has no room for a new-Section target — Sections are made on the
+ *  page — so a gesture there only ever moves a question in among the others
+ *  or into an empty Section. */
+export function outlineDropIntent(
+  source: DragSource,
+  field: Omit<DropField, 'openNewSection'>,
+  point: { x: number; y: number },
+): DropIntent | null {
+  const intent = dropIntent(source, { ...field, openNewSection: null }, point)
+  if (!intent || intent.kind === 'new-section' || intent.kind === 'remove') return null
+  return { ...intent, opensBelow: null }
 }
 
 /** How far the pointer is from an insertion line: straight up or down when it

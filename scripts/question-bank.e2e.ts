@@ -12,7 +12,9 @@ const bank = (page: Page) => page.getByRole('region', { name: 'Question Bank' })
 const bankRows = (page: Page) => bank(page).getByRole('listitem')
 const addToExam = (page: Page) =>
   page.getByRole('button', { name: /^Add .* to the exam$/ })
-const inExamMarkers = (page: Page) => bank(page).getByText('In exam')
+// Beside an Exam the bank lists only what is not on it, and says under the
+// list how many of its Questions are.
+const inExamMarkers = (page: Page) => bank(page).getByText(/of this bank's questions (is|are) in this exam/)
 // The rendered Working Copy is addressed the way the existing browser tests
 // address it, so this suite and the interaction regressions stay one harness.
 const examQuestions = (page: Page) => page.locator('.exam-question')
@@ -60,14 +62,14 @@ test('a question written in the bank stays off the exam until it is added', asyn
 
   await expect(examQuestions(page)).toHaveCount(1)
   await expect(examQuestions(page).first()).toContainText('Which is a mammal?')
-  // Referenced, not copied: one bank record, marked as being on the exam, and
-  // no second way to add it.
-  await expect(bankRows(page)).toHaveCount(1)
+  // Referenced, not copied: the one bank record leaves the list, the line
+  // under it says it is on the exam, and there is no second way to add it.
+  await expect(bankRows(page)).toHaveCount(0)
   await expect(inExamMarkers(page)).toHaveCount(1)
   await expect(addToExam(page)).toHaveCount(0)
 })
 
-test('the slot that says a question is on the exam is also how it comes off', async ({ page }) => {
+test('a question Removed from the exam is listed in the bank again', async ({ page }) => {
   await page.goto('/')
   await page.getByRole('button', { name: 'New Exam' }).first().click()
 
@@ -76,10 +78,12 @@ test('the slot that says a question is on the exam is also how it comes off', as
   await addToExam(page).click()
   await expect(examQuestions(page)).toHaveCount(1)
 
-  // The tick a row wears while it is on the exam is the control that takes it
-  // off again — the bank record itself is untouched, so the row stays and
-  // offers the plus back.
-  await page.getByRole('button', { name: /^Remove .* from the exam$/ }).click()
+  await expect(bankRows(page)).toHaveCount(0)
+
+  // Removed from the page, the bank record itself untouched: the row returns
+  // and offers the plus back.
+  await examQuestions(page).first().click({ button: 'right' })
+  await page.getByRole('menuitem', { name: 'Remove' }).click()
 
   await expect(examQuestions(page)).toHaveCount(0)
   await expect(bankRows(page)).toHaveCount(1)

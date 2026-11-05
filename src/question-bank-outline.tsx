@@ -10,7 +10,7 @@
 // whole bank's — the outline describes the bank, not the current filter.
 
 import type { ComponentType } from 'react'
-import { AlignLeft, BookOpenText, Library, Link2, ListChecks, TextCursorInput, ToggleLeft } from 'lucide-react'
+import { AlignLeft, Database, BookOpenText, Link2, ListChecks, TextCursorInput, ToggleLeft } from 'lucide-react'
 import { TopicSwatch } from './badges'
 import { SECTION_LABELS, SECTION_ORDER, topicsOf, type Question, type QuestionType } from './exam'
 import { topicOptions, type QuestionBankFilter } from './question-bank-view'
@@ -52,7 +52,7 @@ export function QuestionBankOutline({
         aria-pressed={everything}
         onClick={() => scope({})}
       >
-        <Library aria-hidden />
+        <Database aria-hidden />
         <span>All questions</span>
         <small>{questions.length}</small>
       </button>

@@ -64,7 +64,7 @@ test('Remove takes every selected question off the Working Copy, not out of the 
   // Every question is still canonical Question Content, ready to be added back.
   const bank = page.getByRole('region', { name: 'Question Bank' })
   await expect(bank.getByRole('listitem')).toHaveCount(3)
-  await expect(bank.getByText('In exam')).toHaveCount(0)
+  await expect(bank.getByText(/in this exam/)).toHaveCount(0)
 })
 
 test('Delete and Backspace Remove the selected questions from the Working Copy', async ({ page }) => {

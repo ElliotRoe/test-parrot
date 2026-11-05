@@ -113,10 +113,11 @@ test('the bottom edge of a rendered question Inserts after it', async ({ page })
 
   await expect(examQuestions(page)).toHaveCount(4)
   expect(await renderedIds(page)).toEqual(['mc1', 'mcSpare', 'mc2', 'sa1'])
-  // Referenced, not copied: still five bank records, and the incoming one is
-  // marked as being on the exam.
-  await expect(bank(page).getByRole('listitem')).toHaveCount(QUESTIONS.length)
-  await expect(bankRow(page, 'Spare choice question')).toContainText('In exam')
+  // Referenced, not copied: the incoming one leaves the bank's list, which
+  // now offers only the one Question still off the exam.
+  await expect(bankRow(page, 'Spare choice question')).toHaveCount(0)
+  await expect(bank(page).getByRole('listitem')).toHaveCount(1)
+  await expect(bank(page)).toContainText("4 of this bank's questions are in this exam")
 })
 
 test('Shift-selected bank rows drag into the Working Copy together', async ({ page }) => {
@@ -232,20 +233,13 @@ test('feedback shows the landing line while dragging, and a release outside the 
   await expect(preview).toHaveCount(0)
 })
 
-test('a Question Bank question already on the exam offers no gesture', async ({ page }) => {
+test('a Question Bank question already on the exam is not offered to drag on again', async ({ page }) => {
   await openWorkspace(page)
 
-  // A reference occurs at most once, so the row that is on the exam is not a
-  // drag source: pressing and moving it selects it and nothing more.
-  await expect(bankRow(page, 'Cell membranes')).not.toHaveAttribute('data-draggable', 'true')
+  // A reference occurs at most once, so a Question on the exam is not listed
+  // in the bank at all; the ones that are listed are drag sources.
+  await expect(bankRow(page, 'Cell membranes')).toHaveCount(0)
   await expect(bankRow(page, 'Spare choice question')).toHaveAttribute('data-draggable', 'true')
-
-  await pickUp(page, 'Cell membranes', await zonePoint(rendered(page, 'mc2'), 'centre'))
-  await expect(page.locator('.question-drag-preview')).toHaveCount(0)
-  await page.mouse.up()
-
-  expect(await renderedIds(page)).toEqual(['mc1', 'mc2', 'sa1'])
-  await expect(page.getByRole('button', { name: 'Undo' })).toBeDisabled()
 })
 
 const newSectionTarget = (page: Page) => page.locator('[data-new-section-after]')
@@ -332,7 +326,7 @@ test('dragging inside the Working Copy reorders and never Replaces', async ({ pa
 
   expect(await renderedIds(page)).toEqual(['mc2', 'mc1', 'sa1'])
   // A reorder, not a composition: the same three questions on the exam.
-  await expect(bank(page).getByText('In exam')).toHaveCount(3)
+  await expect(bank(page)).toContainText("3 of this bank's questions are in this exam")
 })
 
 test('a reordering drag stays inside its own Question Section', async ({ page }) => {

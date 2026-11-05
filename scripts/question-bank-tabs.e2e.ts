@@ -220,7 +220,8 @@ test('one Exam composes Questions from multiple banks without duplicate identity
   await expect(page.locator('.exam-question')).toHaveCount(2)
   await expect(page.locator('.exam-question')).toContainText(['Describe mitosis.', 'Describe oxygen.'])
   await expect(bank(page).getByRole('button', { name: 'Add Describe oxygen. to the exam' })).toHaveCount(0)
-  await expect(bank(page).getByRole('button', { name: 'Remove Describe oxygen. from the exam' })).toBeVisible()
+  // On the exam, it is no longer listed in its bank.
+  await expect(bank(page)).toContainText("1 of this bank's questions is in this exam")
 })
 
 test('adding a bank Question raises the Working Copy and Discard puts it back', async ({ page }) => {
