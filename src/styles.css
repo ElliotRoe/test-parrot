@@ -5,6 +5,9 @@
      each surface mixing its own browns. */
   /* The ground the dashboard's pages sit on, under everything that is paper. */
   --app-ground: #eee6da;
+  /* The Question Bank Pane's ground: a step lighter than the Exam's, so the
+     place to pick from reads apart from the place being written. */
+  --bank-ground: #f4eee5;
   /* The ground a dialog's preview sheets sit on: darker than the paper. */
   --preview-ground: #e9e1d7;
   --paper-surface: #fffaf3;
@@ -509,7 +512,7 @@ button { cursor: pointer; }
   background: linear-gradient(to bottom,
     #fffaf3 0 calc(var(--editor-bar-height) - 1px),
     var(--divider) calc(var(--editor-bar-height) - 1px) var(--editor-bar-height),
-    var(--app-ground) var(--editor-bar-height));
+    var(--bank-ground) var(--editor-bar-height));
 }
 .workspace-resizer:hover, .workspace-resizer:focus-visible { background: #e3d2bd; }
 .workspace-resizer:focus-visible { outline: 2px solid #8a6a4c; outline-offset: -2px; }
@@ -524,7 +527,7 @@ button { cursor: pointer; }
    and around the scroll area, so the tab strip is visibly not part of the bank
    it opens. The new-tab plus follows the last tab, where Chrome puts it. */
 .question-bank-authoring {
-  position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--app-ground);
+  position: relative; min-width: 0; min-height: 0; overflow: hidden; background: var(--bank-ground);
 }
 /* A question carried off the Exam over the pane: released, it is Removed. */
 .question-bank-authoring[data-remove-over] { box-shadow: inset 0 0 0 2px var(--paper-danger); }
@@ -539,8 +542,8 @@ button { cursor: pointer; }
 /* The pane's close: the top-right-most control, level with Export. */
 .bank-tabs-trailing { grid-area: close; align-self: center; display: flex; }
 .bank-tabs-pane {
-  /* The same header band and the same ground as the Exam's column beside it. */
-  display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--app-ground);
+  /* The same header band as the Exam's column beside it, over a lighter ground. */
+  display: flex; flex-direction: column; height: 100%; min-height: 0; background: var(--bank-ground);
 }
 /* Two rows, as the Exam's bar has: the name, then the open banks as tabs
    where the Exam's menus are — on the same band and over the same rule. */
@@ -560,7 +563,7 @@ button { cursor: pointer; }
 }
 .bank-pane-title svg { flex: none; width: 12px; height: 12px; stroke-width: 2.2; }
 .bank-tabs-pane > .question-bank { flex: 1 1 auto; height: auto; min-height: 0; border: 0; border-radius: 0; background: transparent; }
-.bank-tabs-pane > .question-bank .question-bank-toolbar { background: var(--app-ground); }
+.bank-tabs-pane > .question-bank .question-bank-toolbar { background: var(--bank-ground); }
 /* The tabs sit on the header's rule; the active one is underlined on it. */
 .bank-tabs-bar {
   grid-area: tabs; position: relative; z-index: 1; margin-bottom: -1px; min-width: 0;
