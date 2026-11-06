@@ -1,12 +1,12 @@
 import { useEffect, useId, useRef, useState } from 'react'
-import { ChevronDown, Cloud, CloudDownload, LogOut, RefreshCw, Settings } from 'lucide-react'
+import { ChevronDown, Cloud, RefreshCw, Settings } from 'lucide-react'
 import { SETTINGS_PATH } from '../account-menu'
 import { navigate } from '../use-route'
 import type { DriveSync } from './drive-sync-context'
 import type { SyncReport } from './sync-engine'
 import './sync-button.css'
 
-export const PRIVACY_NOTE = 'Your work goes straight from this browser to your own Google Drive. Test Parrot’s servers never see it.'
+export const PRIVACY_NOTE = 'Your work goes straight from this browser to your own Google Drive.'
 
 function when(iso: string | undefined) {
   if (!iso) return 'never'
@@ -87,14 +87,7 @@ export function SyncButton({ drive }: { drive: DriveSync }) {
           {!drive.connected ? (
             <>
               <strong>Sync with Google Drive</strong>
-              <p>Keep your Exams and Question Banks in your own Google Drive, to use them on another computer or share them with colleagues. Your work stays in this browser too, and Test Parrot works the same without Drive.</p>
-              <p className="sync-privacy">{PRIVACY_NOTE}</p>
-              <div className="account-actions">
-                <button type="button" className="primary-button account-action" disabled={busy !== null} onClick={() => void drive.connect()}>
-                  <Cloud aria-hidden="true" />
-                  {busy === 'connecting' ? 'Connecting…' : 'Connect Google Drive'}
-                </button>
-              </div>
+              <p>Keep your Exams and Question Banks in your own Google Drive, to use them on another computer or share them with colleagues. Test Parrot works the same without it.</p>
             </>
           ) : (
             <>
@@ -102,11 +95,10 @@ export function SyncButton({ drive }: { drive: DriveSync }) {
               <p>Last synced: {when(state.lastSyncAt)}</p>
               {drive.backupOffer ? (
                 <div className="sync-offer">
-                  <p>Your Drive already holds Test Parrot work from another browser. Restore it here, replacing what this browser has, or sync this browser’s work alongside it.</p>
+                  <p>Your Drive already has Test Parrot work from another computer. Bring it here, replacing what this browser has, or sync this browser’s work alongside it.</p>
                   <div className="account-actions">
                     <button type="button" className="primary-button account-action" disabled={busy !== null} onClick={() => void drive.restoreFromDrive()}>
-                      <CloudDownload aria-hidden="true" />
-                      {busy === 'restoring' ? 'Restoring…' : 'Restore from Drive'}
+                      {busy === 'restoring' ? 'Bringing it here…' : 'Use the work in Drive'}
                     </button>
                     <button type="button" className="secondary-button account-action" disabled={busy !== null} onClick={() => void drive.sync()}>
                       Sync this browser
@@ -143,35 +135,22 @@ export function SyncButton({ drive }: { drive: DriveSync }) {
                   ))}
                 </div>
               )}
-              <p className="sync-privacy">{PRIVACY_NOTE}</p>
-              <div className="account-actions">
-                <button type="button" className="secondary-button account-action" disabled={busy !== null} onClick={() => void drive.sync()}>
-                  <RefreshCw aria-hidden="true" />
-                  Sync now
-                </button>
-                {!drive.backupOffer && (
-                  <button type="button" className="secondary-button account-action" disabled={busy !== null} onClick={() => {
-                    if (window.confirm('Replace everything in this browser with the Account Backup in your Drive? Anything not yet synced from this browser is lost.')) void drive.restoreFromDrive()
-                  }}>
-                    <CloudDownload aria-hidden="true" />
-                    Restore from Drive
-                  </button>
-                )}
-                <button type="button" className="secondary-button account-action" disabled={busy !== null} onClick={() => { drive.disconnect(); setOpen(false) }}>
-                  <LogOut aria-hidden="true" />
-                  Disconnect
-                </button>
-              </div>
-              <p className="sync-footnote">Disconnect stops syncing. Your work in this browser and your files in Drive stay as they are.</p>
             </>
           )}
           {error && <p className="account-warning" role="alert">{error}</p>}
           <div className="account-actions">
+            {!drive.connected && (
+              <button type="button" className="primary-button account-action" disabled={busy !== null} onClick={() => void drive.connect()}>
+                <Cloud aria-hidden="true" />
+                {busy === 'connecting' ? 'Connecting…' : 'Connect Google Drive'}
+              </button>
+            )}
             <button type="button" className="secondary-button account-action" onClick={() => { setOpen(false); navigate(SETTINGS_PATH) }}>
               <Settings aria-hidden="true" />
               Settings
             </button>
           </div>
+          <p className="sync-privacy">{PRIVACY_NOTE}</p>
         </div>
       )}
     </div>

@@ -3,6 +3,7 @@
 // Test Parrot server.
 
 import { DriveError, type DriveChange, type DriveClient, type DriveFile } from './drive-client'
+import { forgetToken } from './google-auth'
 
 const API = 'https://www.googleapis.com/drive/v3'
 const UPLOAD = 'https://www.googleapis.com/upload/drive/v3'
@@ -43,6 +44,7 @@ export function createGoogleDrive(token: () => Promise<string>, fetcher: typeof 
       ...init,
       headers: { Authorization: `Bearer ${await token()}`, ...(init.headers ?? {}) },
     })
+    if (response.status === 401) forgetToken()
     if (!response.ok) {
       let detail = ''
       try { detail = ((await response.json()) as { error?: { message?: string } }).error?.message ?? '' } catch { /* not JSON */ }

@@ -12,7 +12,7 @@ import type { DriveClient, DriveFile } from './drive-client'
 import { createGoogleDrive } from './google-drive'
 import { cachedToken, disconnectGoogle, driveConfigured, DriveAuthError, preloadGoogle, requestDriveToken } from './google-auth'
 import { bringInDriveFiles, findDriveBackup, needsSync, resolveConflict, sharedWithCount, syncWithDrive, type ConflictChoice, type LocalRef, type LocalSide, type SyncReport } from './sync-engine'
-import { afterRestore, browserSyncStateStore, disconnectedState, fileKey, onSyncStateChanged, type Conflict, type SyncState, type SyncStateStore } from './sync-state'
+import { afterRestore, browserSyncStateStore, disconnectedState, fileKey, onSyncStateChanged, knownFile, type Conflict, type SyncState, type SyncStateStore } from './sync-state'
 
 export type DriveSyncServices = {
   library: LibraryService
@@ -107,7 +107,7 @@ export function DriveSyncProvider({
     setBusy('connecting')
     setError('')
     try {
-      await requestDriveToken({ consent: true })
+      await requestDriveToken()
       const account = await drive.account()
       const next = { ...store.read(), account }
       save(next)
@@ -147,11 +147,14 @@ export function DriveSyncProvider({
   const ensureConnected = useCallback(async () => {
     const current = store.read()
     if (current.account) return
-    await requestDriveToken({ consent: true })
+    await requestDriveToken()
     save({ ...current, account: await drive.account() })
   }, [drive, save, store])
 
   const openDriveFile = useCallback(async (fileId: string): Promise<LocalRef | null> => {
+    // A file this browser already syncs opens as it is, with no call to Google.
+    const known = knownFile(store.read(), fileId)
+    if (known) return known
     setBusy('opening')
     setError('')
     try {

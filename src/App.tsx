@@ -138,6 +138,7 @@ import {
   CircleDot,
   Crop,
   FileType2,
+  FolderInput,
   FolderOpen,
   Gauge,
   Heading,
@@ -202,7 +203,7 @@ import { LibraryActionsContext, type LibraryActions, type NewKind } from './libr
 import { createLibraryService, type DeletionWarning, type EntryRef, type LibraryService, type LibrarySnapshot } from './library'
 import { LibraryPage } from './library-page'
 import { draggedRefs, folderHref, folderOfRoute, libraryViewOf } from './library-routes'
-import { NameDialog, TrashDialog } from './library-dialogs'
+import { MoveDialog, NameDialog, TrashDialog } from './library-dialogs'
 import { FolderPath } from './folder-path'
 import { BankPicker } from './bank-picker'
 import type { FolderRecord } from './resource-places'
@@ -2107,6 +2108,7 @@ function ExamEditor({
   // the export went ahead, and this stays until the teacher dismisses it.
   const [exportWarning, setExportWarning] = useState<string | null>(null)
   const [choosingExam, setChoosingExam] = useState(false)
+  const [movingExam, setMovingExam] = useState<{ parentId: string | null; folders: Map<string, FolderRecord> } | null>(null)
   const [documentMenu, setDocumentMenu] = useState<{
     kind: DocumentMenuKind
     point: MenuPoint
@@ -2665,7 +2667,6 @@ function ExamEditor({
                   placeholder="Untitled Exam"
                   onChange={(event) => store.setTitle(event.target.value)}
                 />
-                {library && <FolderPath library={library} resource={{ kind: 'exam', id: examId }} name={state.workingCopy.title} documentLoad />}
               </div>
               <nav className="document-menus" aria-label="Exam menus">
                 {DOCUMENT_MENUS.map((kind) => (
@@ -2832,6 +2833,15 @@ function ExamEditor({
             icon: <FolderOpen />,
             onSelect: () => setChoosingExam(true),
           },
+          ...(library ? [{
+            kind: 'action' as const,
+            label: 'Move…',
+            icon: <FolderInput />,
+            onSelect: () => {
+              void Promise.all([library.placeOf({ kind: 'exam', id: examId }), library.folders()])
+                .then(([parentId, folders]) => setMovingExam({ parentId, folders }))
+            },
+          }] : []),
           { kind: 'separator' },
           {
             kind: 'action',
@@ -2901,6 +2911,19 @@ function ExamEditor({
         disabled={isHistoricalBrowsing}
         onChange={(sides, inches, continuing) => store.setMargins(sides, inches, { continuing })}
         onClose={closeMarginsPanel}
+      />}
+
+      {movingExam && library && <MoveDialog
+        title={`Move “${state.workingCopy.title || 'Untitled Exam'}”`}
+        moving={[{ kind: 'exam', id: examId }]}
+        from={[movingExam.parentId]}
+        startAt={movingExam.parentId}
+        folders={movingExam.folders}
+        onCancel={() => setMovingExam(null)}
+        onMove={async (folderId) => {
+          await library.move([{ kind: 'exam', id: examId }], folderId)
+          setMovingExam(null)
+        }}
       />}
 
       {choosingExam && <ResourcePicker

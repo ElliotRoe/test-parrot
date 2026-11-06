@@ -100,15 +100,38 @@ export function problemOf(error: string | undefined, description = ''): AuthProb
   return 'other'
 }
 
-let token: { value: string; expiresAt: number } | null = null
+// The token is kept for its hour in this browser's storage, so a new tab (a
+// Drive Copy's banner link, say) or a reload does not ask Google again. Its
+// key is outside the `test-parrot:` keys an Account Backup carries.
+const TOKEN_KEY = 'drive-sync-token'
+type Token = { value: string; expiresAt: number }
+let token: Token | null = null
 let client: TokenClient | null = null
 
+function storedToken(): Token | null {
+  try {
+    const raw = localStorage.getItem(TOKEN_KEY)
+    return raw ? JSON.parse(raw) as Token : null
+  } catch {
+    return null
+  }
+}
+
+function keepToken(next: Token | null) {
+  token = next
+  try {
+    if (next) localStorage.setItem(TOKEN_KEY, JSON.stringify(next))
+    else localStorage.removeItem(TOKEN_KEY)
+  } catch { /* storage unavailable: memory only */ }
+}
+
 export function cachedToken(now = Date.now()): string | null {
+  token ??= storedToken()
   return token && token.expiresAt - 60_000 > now ? token.value : null
 }
 
 export function forgetToken(): void {
-  token = null
+  keepToken(null)
 }
 
 /**
@@ -133,7 +156,7 @@ export async function requestDriveToken(options: { loginHint?: string; consent?:
         reject(new DriveAuthError('scope', authProblemMessage('scope')))
         return
       }
-      token = { value: response.access_token, expiresAt: Date.now() + Number(response.expires_in ?? 3600) * 1000 }
+      keepToken({ value: response.access_token, expiresAt: Date.now() + Number(response.expires_in ?? 3600) * 1000 })
       resolve(response.access_token)
     }
     const errorCallback = (error: { type?: string; message?: string }) => {
@@ -154,6 +177,6 @@ export async function requestDriveToken(options: { loginHint?: string; consent?:
  *  revoking it could also take away the files a teammate handed over, and
  *  Disconnect leaves Drive as it is. */
 export function disconnectGoogle(): void {
-  token = null
+  keepToken(null)
   client = null
 }

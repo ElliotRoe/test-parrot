@@ -109,3 +109,11 @@ export function afterRestore(state: SyncState): SyncState {
     ...(state.backupId ? { backupId: state.backupId } : {}),
   }
 }
+
+/** The Resource a Drive file already is in this browser, or null. */
+export function knownFile(state: SyncState, fileId: string): { kind: ResourceKind; id: string } | null {
+  const found = Object.entries(state.files).find(([, entry]) => entry.fileId === fileId && !entry.trashed)
+  if (!found) return null
+  const [key, entry] = found
+  return { kind: entry.kind, id: key.slice(entry.kind.length + 1) }
+}
