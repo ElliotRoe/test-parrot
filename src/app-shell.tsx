@@ -19,6 +19,8 @@ import {
   X,
 } from 'lucide-react'
 import { AccountBadge, SETTINGS_PATH } from './account-menu'
+import { useDriveSync } from './drive/drive-sync-context'
+import { SyncButton } from './drive/sync-button'
 import { ContextMenu, type MenuItem, type MenuPoint } from './context-menu'
 import { LibraryActionsContext, type LibraryActions, type NewKind } from './library-actions'
 import type { PersistentStorageStatus } from './durable-storage'
@@ -215,6 +217,7 @@ export function AppShell({
 }) {
   const route = useRoute()
   const library = useContext(LibraryActionsContext)
+  const drive = useDriveSync()
   const narrow = useNarrow()
   const [drawer, setDrawer] = useState(false)
   const [dropping, setDropping] = useState<number | null>(null)
@@ -316,7 +319,9 @@ export function AppShell({
           {search}
           <div className="app-topbar-actions">
             {actions}
-            <AccountBadge status={persistentStorage} />
+            {drive?.configured
+              ? <SyncButton drive={drive} />
+              : <AccountBadge status={persistentStorage} />}
           </div>
         </header>
         <main className="app-main">{children}</main>

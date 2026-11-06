@@ -210,6 +210,8 @@ import { UNTITLED_FOLDER } from './resource-places'
 import { AboutPage, PrivacyPage } from './site-pages'
 import { SettingsPage } from './settings-page'
 import { persistentStorageStatus, requestPersistentStorage, type PersistentStorageStatus } from './durable-storage'
+import { LIBRARY_CHANGED_EVENT } from './drive/drive-sync-context'
+import { OpenFromDrivePage } from './drive/open-page'
 import { BankFileDropTarget } from './bank-file-drop'
 import { ImportsPage, WaitingImportPage } from './imports-page'
 import { QuestionBankExportDialog } from './question-bank-export-dialog'
@@ -3516,6 +3518,15 @@ export default function App({
     setStorageStatus(currentStorageStatus)
     setExams(next.entries.flatMap((entry) => (entry.kind === 'exam' && !library.inTrash(entry, next.folders) ? [entry.exam] : [])))
   }, [library])
+  // Sync with Drive changed the Library underneath this page (ADR-0052).
+  useEffect(() => {
+    const onChanged = () => {
+      if (window.location.pathname === '/question-bank') window.location.reload()
+      else void refreshLibrary()
+    }
+    window.addEventListener(LIBRARY_CHANGED_EVENT, onChanged)
+    return () => window.removeEventListener(LIBRARY_CHANGED_EVENT, onChanged)
+  }, [refreshLibrary])
   // The Library reads the account afresh each time a page of it is shown:
   // moving between it and a Question Bank page loads no document, so what it
   // had is out of date once a bank is edited. It also sweeps away untouched
@@ -3642,6 +3653,7 @@ export default function App({
     if (route === '/about') return <>{globalChrome}<AboutPage persistentStorage={storageStatus} /></>
     if (route === '/privacy') return <>{globalChrome}<PrivacyPage persistentStorage={storageStatus} /></>
     if (route === '/settings') return <>{globalChrome}<SettingsPage persistentStorage={storageStatus} /></>
+    if (route === '/open') return <>{globalChrome}<OpenFromDrivePage persistentStorage={storageStatus} /></>
     // A device that has never been here gets the front door instead of empty
     // shelves; the same page stays reachable at /welcome afterwards.
     const firstVisit = exams.length === 0 && bankCollection.length === 0 && !hasBeenWelcomed()

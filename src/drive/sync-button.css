@@ -1,0 +1,27 @@
+/* Sync with Drive in the top bar (ADR-0052): the Sync button, its dot, and
+   the arrow that opens the Drive Connection's panel. */
+.sync-control { position: relative; display: flex; align-items: center; }
+.sync-button, .sync-menu-button {
+  position: relative; display: inline-flex; align-items: center; gap: 6px; height: 34px;
+  border: 1px solid #ddcdb9; background: #fffaf3; color: #4e3b2f; font: inherit; font-size: 13px; font-weight: 600;
+  cursor: pointer;
+}
+.sync-button { padding: 0 11px; border-radius: 8px 0 0 8px; }
+.sync-menu-button { padding: 0 6px; border-left: 0; border-radius: 0 8px 8px 0; }
+.sync-button svg, .sync-menu-button svg { width: 16px; height: 16px; }
+.sync-button:hover, .sync-menu-button:hover, .sync-button:focus-visible, .sync-menu-button:focus-visible { color: var(--paper-accent); background: #f2e6d8; }
+.sync-button:disabled { cursor: progress; }
+.sync-dot {
+  position: absolute; top: 4px; right: 4px; width: 8px; height: 8px; border-radius: 50%;
+  background: #e2a91b; box-shadow: 0 0 0 2px #fffaf3;
+}
+.sync-panel p + p, .sync-panel .sync-report, .sync-panel .sync-offer, .sync-panel .sync-conflicts { margin-top: 8px; }
+.sync-privacy { font-size: 12px; }
+.sync-footnote { margin-top: 8px !important; font-size: 12px; }
+.sync-conflicts ul { margin: 6px 0 0; padding-left: 18px; }
+.sync-conflict { display: grid; gap: 6px; margin-top: 8px; padding: 8px 10px; border: 1px solid #ddcdb9; border-radius: 8px; background: #fffdf8; }
+.sync-conflict .account-actions { margin-top: 0; }
+@media (max-width: 599px) { .sync-button span:not(.sync-dot) { display: none; } }
+
+.open-drive { max-width: 520px; }
+.open-drive .account-actions { margin-top: 16px; }
