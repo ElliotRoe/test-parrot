@@ -126,8 +126,21 @@ export function SyncButton({ drive }: { drive: DriveSync }) {
               )}
               {state.conflicts.length > 0 && (
                 <div className="sync-conflicts">
-                  <p className="account-warning">Changed both here and in Drive since this browser last synced, so they were skipped:</p>
-                  <ul>{state.conflicts.map((conflict) => <li key={conflict.fileId}>{conflict.name}</li>)}</ul>
+                  <p className="account-warning">Changed both here and in Drive since this browser last synced, so sync skipped {state.conflicts.length === 1 ? 'it' : 'them'}. Nothing is merged: choose for each.</p>
+                  {state.conflicts.map((conflict) => (
+                    <div key={conflict.fileId} className="sync-conflict" role="group" aria-label={conflict.name}>
+                      <strong>{conflict.name}</strong>
+                      <div className="account-actions">
+                        <button type="button" className="secondary-button account-action" disabled={busy !== null} onClick={() => void drive.resolve(conflict, 'theirs')}>
+                          Use theirs
+                        </button>
+                        <button type="button" className="secondary-button account-action" disabled={busy !== null} onClick={() => void drive.resolve(conflict, 'both')}>
+                          Keep both
+                        </button>
+                      </div>
+                      <p className="sync-footnote">Use theirs replaces your copy with the one in Drive. Keep both keeps yours too, as “{conflict.name} (your copy)”.</p>
+                    </div>
+                  ))}
                 </div>
               )}
               <p className="sync-privacy">{PRIVACY_NOTE}</p>

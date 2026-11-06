@@ -3,16 +3,16 @@
 // `/open` page and the New menu.
 
 import { useCallback, useEffect, useMemo, useRef, useState, type ReactNode } from 'react'
-import { DriveSyncContext, LIBRARY_CHANGED_EVENT, libraryChanged, type DriveBusy, type DriveSync } from './drive-sync-context'
+import { DriveSyncContext, LIBRARY_CHANGED_EVENT, libraryChanged, type DriveBusy, type DriveSync, type SharingSummary } from './drive-sync-context'
 import type { ExamWorkspaceService } from '../exam-workspaces'
 import type { LibraryService } from '../library'
 import type { QuestionBankWorkspaceService } from '../question-bank-workspaces'
 import { createBrowserLibrary } from './browser-library'
 import type { DriveClient, DriveFile } from './drive-client'
 import { createGoogleDrive } from './google-drive'
-import { disconnectGoogle, driveConfigured, DriveAuthError, preloadGoogle, requestDriveToken } from './google-auth'
-import { findDriveBackup, needsSync, syncWithDrive, type LocalRef, type LocalSide, type SyncReport } from './sync-engine'
-import { afterRestore, browserSyncStateStore, disconnectedState, fileKey, onSyncStateChanged, type SyncState, type SyncStateStore } from './sync-state'
+import { cachedToken, disconnectGoogle, driveConfigured, DriveAuthError, preloadGoogle, requestDriveToken } from './google-auth'
+import { bringInDriveFiles, findDriveBackup, needsSync, resolveConflict, sharedWithCount, syncWithDrive, type ConflictChoice, type LocalRef, type LocalSide, type SyncReport } from './sync-engine'
+import { afterRestore, browserSyncStateStore, disconnectedState, fileKey, onSyncStateChanged, type Conflict, type SyncState, type SyncStateStore } from './sync-state'
 
 export type DriveSyncServices = {
   library: LibraryService
@@ -143,52 +143,87 @@ export function DriveSyncProvider({
     }
   }, [backupOffer, drive, save, store])
 
+  /** Connects first when this browser has no Drive Connection yet. */
+  const ensureConnected = useCallback(async () => {
+    const current = store.read()
+    if (current.account) return
+    await requestDriveToken({ consent: true })
+    save({ ...current, account: await drive.account() })
+  }, [drive, save, store])
+
   const openDriveFile = useCallback(async (fileId: string): Promise<LocalRef | null> => {
     setBusy('opening')
     setError('')
     try {
-      let current = store.read()
-      if (!current.account) {
-        await requestDriveToken({ consent: true })
-        current = { ...current, account: await drive.account() }
-        save(current)
-      }
-      const known = Object.entries(current.files).find(([, entry]) => entry.fileId === fileId)
+      await ensureConnected()
       const file = await drive.get(fileId)
-      if (known && (!file || !file.trashed)) {
-        const [key] = known
-        const [kind, ...id] = key.split(':')
-        return { kind: kind as LocalRef['kind'], id: id.join(':') }
-      }
       if (!file || file.trashed) return null
-      const kind = file.appProperties.tpKind
-      if (kind !== 'bank' && kind !== 'exam') throw new Error('That file is not a Test Parrot Drive Copy.')
-      const applied = await local.apply({
-        kind,
-        parentId: null,
-        bytes: await drive.download(fileId),
-        isDriveCopy: (bankId) => Boolean(store.read().files[fileKey('bank', bankId)]),
-      })
-      const next = store.read()
-      next.files[fileKey(kind, applied.id)] = {
-        kind,
-        fileId,
-        localModifiedAt: applied.modifiedAt,
-        md5: file.md5Checksum ?? '',
-        ownedByMe: file.ownedByMe,
-        ...(applied.memo ? { memo: applied.memo } : {}),
-      }
-      next.ignored = (next.ignored ?? []).filter((id) => id !== fileId)
-      save(next)
+      const [brought] = await bringInDriveFiles({ drive, local, store }, [fileId], null)
+      setState(store.read())
       libraryChanged()
-      return { kind, id: applied.id }
+      return brought ?? null
     } catch (caught) {
       setError(errorText(caught))
       throw caught
     } finally {
       setBusy(null)
     }
-  }, [drive, local, save, store])
+  }, [drive, ensureConnected, local, store])
+
+  const addFromDrive = useCallback(async (folderId: string | null): Promise<number> => {
+    setBusy('opening')
+    setError('')
+    try {
+      await ensureConnected()
+      const { pickDriveFiles } = await import('./google-picker')
+      const picked = await pickDriveFiles({ title: 'Add Test Parrot files from Google Drive' })
+      if (picked.length === 0) return 0
+      const brought = await bringInDriveFiles({ drive, local, store }, picked, folderId)
+      setState(store.read())
+      libraryChanged()
+      return brought.length
+    } catch (caught) {
+      setError(errorText(caught))
+      throw caught
+    } finally {
+      setBusy(null)
+    }
+  }, [drive, ensureConnected, local, store])
+
+  const pickToOpen = useCallback(async (fileId: string): Promise<boolean> => {
+    const { pickDriveFiles } = await import('./google-picker')
+    return (await pickDriveFiles({ fileIds: [fileId], multiple: false, title: 'Choose this file to open it in Test Parrot' })).includes(fileId)
+  }, [])
+
+  const resolve = useCallback(async (conflict: Conflict, choice: ConflictChoice) => {
+    setBusy('syncing')
+    setError('')
+    try {
+      await resolveConflict({ drive, local, store }, conflict, choice)
+      setState(store.read())
+      libraryChanged()
+    } catch (caught) {
+      setError(errorText(caught))
+    } finally {
+      setBusy(null)
+    }
+  }, [drive, local, store])
+
+  const sharing = useCallback(async (refs: readonly { kind: string; id: string }[]): Promise<SharingSummary> => {
+    const summary: SharingSummary = { owned: 0, people: 0, othersOwn: 0, counted: true }
+    for (const ref of refs) {
+      if (ref.kind !== 'bank' && ref.kind !== 'exam') continue
+      const entry = store.read().files[fileKey(ref.kind as LocalRef['kind'], ref.id)]
+      if (!entry || entry.trashed) continue
+      if (!entry.ownedByMe) { summary.othersOwn += 1; continue }
+      summary.owned += 1
+      // Counting asks Drive, which needs a token this click may not give.
+      if (!cachedToken()) { summary.counted = false; continue }
+      const counted = await sharedWithCount({ drive, store }, ref as LocalRef).catch(() => null)
+      summary.people += counted?.people ?? 0
+    }
+    return summary
+  }, [drive, store])
 
   const value = useMemo<DriveSync>(() => ({
     configured,
@@ -214,8 +249,12 @@ export function DriveSyncProvider({
     restoreFromDrive,
     dismissBackupOffer: () => setBackupOffer(null),
     openDriveFile,
+    pickToOpen,
+    addFromDrive,
+    resolve,
+    sharing,
     clearReport: () => setReport(null),
-  }), [backupOffer, busy, configured, connect, dot, error, openDriveFile, report, restoreFromDrive, runSync, save, state])
+  }), [addFromDrive, backupOffer, busy, configured, connect, dot, error, openDriveFile, pickToOpen, report, resolve, restoreFromDrive, runSync, save, sharing, state])
 
   return <DriveSyncContext.Provider value={value}>{children}</DriveSyncContext.Provider>
 }

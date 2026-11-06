@@ -3,6 +3,7 @@ import type { DragEvent, ReactNode } from 'react'
 import { createPortal } from 'react-dom'
 import {
   CircleQuestionMark,
+  Cloud,
   Database,
   Clock,
   FileText,
@@ -54,7 +55,7 @@ function isCurrent(href: string, route: string) {
 }
 
 
-function newMenuItems(actions: LibraryActions, folderId: string | null): MenuItem[] {
+function newMenuItems(actions: LibraryActions, folderId: string | null, drive: boolean): MenuItem[] {
   const make = (kind: NewKind) => () => actions.onNew(kind, folderId)
   return [
     { kind: 'action', label: 'New folder', icon: <FolderPlus />, onSelect: make('folder') },
@@ -63,6 +64,7 @@ function newMenuItems(actions: LibraryActions, folderId: string | null): MenuIte
     { kind: 'separator' },
     { kind: 'action', label: 'Import file…', icon: <Upload />, onSelect: make('import') },
     { kind: 'action', label: 'Convert a test with AI…', icon: <Sparkles />, onSelect: make('convert') },
+    ...(drive ? [{ kind: 'action' as const, label: 'Add from Google Drive…', icon: <Cloud />, onSelect: make('drive') }] : []),
   ]
 }
 
@@ -70,6 +72,7 @@ function newMenuItems(actions: LibraryActions, folderId: string | null): MenuIte
  *  screen the round "+" at the bottom right. */
 function NewButton({ actions, folderId, floating = false }: { actions: LibraryActions; folderId: string | null; floating?: boolean }) {
   const [menu, setMenu] = useState<MenuPoint | null>(null)
+  const drive = useDriveSync()
   return (
     <>
       <button
@@ -91,7 +94,7 @@ function NewButton({ actions, folderId, floating = false }: { actions: LibraryAc
           point={menu}
           side={floating ? 'left' : 'right'}
           ariaLabel="New"
-          items={newMenuItems(actions, folderId)}
+          items={newMenuItems(actions, folderId, Boolean(drive?.configured))}
           onClose={() => setMenu(null)}
         />
       )}

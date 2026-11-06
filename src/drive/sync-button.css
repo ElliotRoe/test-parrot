@@ -25,3 +25,5 @@
 
 .open-drive { max-width: 520px; }
 .open-drive .account-actions { margin-top: 16px; }
+
+.trash-drive-warning { font-weight: 600; }

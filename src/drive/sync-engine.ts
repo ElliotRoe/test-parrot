@@ -390,3 +390,109 @@ export function oldestUnsyncedChange(state: SyncState, resources: readonly Local
   })
   return times.length === 0 ? null : times.reduce((left, right) => (left < right ? left : right))
 }
+
+// ---------------------------------------------------------------------------
+// Sharing (ADR-0052).
+
+function entryFor(file: DriveFile, applied: Applied): FileEntry {
+  return {
+    kind: file.appProperties.tpKind as ResourceKind,
+    fileId: file.id,
+    localModifiedAt: applied.modifiedAt,
+    md5: file.md5Checksum ?? '',
+    ownedByMe: file.ownedByMe,
+    ...(applied.memo ? { memo: applied.memo } : {}),
+  }
+}
+
+/**
+ * Brings in Drive files the teacher handed over (Add from Google Drive, or a
+ * teammate's banner link), each into `parentId`. One already in the Library
+ * is left as it is and named. Banks come first, so an Exam among them can
+ * link to their Questions.
+ */
+export async function bringInDriveFiles(context: SyncContext, fileIds: readonly string[], parentId: string | null): Promise<(LocalRef & { name: string })[]> {
+  const { drive, local, store } = context
+  const state = store.read()
+  const files = (await Promise.all(fileIds.map((id) => drive.get(id))))
+    .filter((file): file is DriveFile => file !== null && !file.trashed)
+  const kinds = files.filter((file) => file.appProperties.tpKind === 'bank' || file.appProperties.tpKind === 'exam')
+  if (kinds.length < files.length) throw new Error('Only files Test Parrot keeps in Drive can be added. A PDF exported for students is not one.')
+  kinds.sort((left, right) => (left.appProperties.tpKind === right.appProperties.tpKind ? 0 : left.appProperties.tpKind === 'bank' ? -1 : 1))
+  const brought: (LocalRef & { name: string })[] = []
+  for (const file of kinds) {
+    const kind = file.appProperties.tpKind as ResourceKind
+    const known = Object.entries(state.files).find(([, entry]) => entry.fileId === file.id)
+    if (known) {
+      brought.push({ kind, id: known[0].slice(kind.length + 1), name: file.name.replace(/\.pdf$/i, '') })
+      continue
+    }
+    const applied = await local.apply({
+      kind,
+      parentId,
+      bytes: await drive.download(file.id),
+      isDriveCopy: (bankId) => Boolean(state.files[fileKey('bank', bankId)]),
+    })
+    state.files[fileKey(kind, applied.id)] = entryFor(file, applied)
+    state.ignored = (state.ignored ?? []).filter((id) => id !== file.id)
+    store.write(state)
+    brought.push({ kind, id: applied.id, name: applied.name })
+  }
+  return brought
+}
+
+export type ConflictChoice = 'theirs' | 'both'
+
+/**
+ * Settles one file the last sync skipped. Use theirs replaces the browser's
+ * copy with Drive's. Keep both first keeps the browser's version as a new
+ * Resource, "<name> (your copy)", sent to Drive as a new file, then takes
+ * theirs. Nothing is merged.
+ */
+export async function resolveConflict(context: SyncContext, conflict: Conflict, choice: ConflictChoice): Promise<void> {
+  const { drive, local, store } = context
+  const state = store.read()
+  const key = fileKey(conflict.kind, conflict.id)
+  const entry = state.files[key]
+  const file = await drive.get(conflict.fileId)
+  if (!entry || !file || file.trashed) throw new Error(`${conflict.name} is no longer in Drive. Sync again.`)
+  const { resources } = await local.snapshot()
+  const resource = resources.find((candidate) => candidate.kind === conflict.kind && candidate.id === conflict.id)
+  if (!resource) throw new Error(`${conflict.name} is no longer in this browser. Sync again.`)
+
+  if (choice === 'both') {
+    const copy = await local.duplicate(resource, `${resource.name} (your copy)`)
+    const parent = (copy.parentId && state.folders[copy.parentId]) || state.rootId
+    const created = await drive.create({
+      name: driveFileName(copy),
+      parent: parent ?? null,
+      mimeType: PDF_MIME,
+      appProperties: props(copy.kind, { tpId: copy.id, tpMod: copy.modifiedAt }),
+    })
+    const sent = await drive.upload(created.id, await local.render(copy, created.id), PDF_MIME)
+    state.files[fileKey(copy.kind, copy.id)] = { kind: copy.kind, fileId: created.id, localModifiedAt: copy.modifiedAt, md5: sent.md5Checksum ?? '', ownedByMe: true }
+    store.write(state)
+  }
+
+  const applied = await local.apply({
+    kind: conflict.kind,
+    id: conflict.id,
+    parentId: resource.parentId,
+    bytes: await drive.download(file.id),
+    ...(entry.memo ? { memo: entry.memo } : {}),
+    isDriveCopy: (bankId) => Boolean(state.files[fileKey('bank', bankId)]),
+  })
+  state.files[key] = entryFor(file, applied)
+  state.conflicts = state.conflicts.filter((candidate) => candidate.fileId !== conflict.fileId)
+  store.write(state)
+}
+
+/** How many people besides its owner a Resource's Drive Copy is shared
+ *  with, for the Trash warning; null when it has none or someone else owns
+ *  it (then Trash only takes it out of this Library). */
+export async function sharedWithCount(context: Pick<SyncContext, 'drive' | 'store'>, ref: LocalRef): Promise<{ owned: boolean; people: number } | null> {
+  const entry = context.store.read().files[fileKey(ref.kind, ref.id)]
+  if (!entry || entry.trashed) return null
+  if (!entry.ownedByMe) return { owned: false, people: 0 }
+  return { owned: true, people: await context.drive.sharedWith(entry.fileId) }
+}

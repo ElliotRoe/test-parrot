@@ -1,7 +1,7 @@
 import { describe, expect, test } from 'bun:test'
 import { FakeDriveWorld } from './fake-drive'
 import { FakeLocal } from './fake-local'
-import { BACKUP_FILE_NAME, needsSync, syncWithDrive, type SyncContext } from './sync-engine'
+import { BACKUP_FILE_NAME, bringInDriveFiles, needsSync, resolveConflict, sharedWithCount, syncWithDrive, type SyncContext } from './sync-engine'
 import { fileKey, memorySyncStateStore } from './sync-state'
 
 const DAY = 24 * 60 * 60 * 1000
@@ -183,5 +183,119 @@ describe('the Sync button dot', () => {
   test('counts a Resource sent to Trash and not yet mirrored', () => {
     const trashedAt = new Date(now.getTime() - 2 * DAY).toISOString()
     expect(needsSync(synced('2020-01-01T00:00:00Z'), [resource('2020-01-01T00:00:00Z', { trashed: true, trashedAt })], now)).toBe(true)
+  })
+})
+
+describe('conflicts', () => {
+  async function conflicted() {
+    const world = new FakeDriveWorld()
+    const teacher = browser(world)
+    const bank = teacher.local.add('bank', 'Fractions', 'v1')
+    await teacher.sync()
+    const file = world.byName('Fractions.pdf')!
+    world.touch(file.id, copy('theirs', 'Fractions', bank.id))
+    teacher.local.edit(bank, 'mine')
+    const [conflict] = (await teacher.sync()).conflicts
+    return { world, teacher, bank, file, conflict: conflict! }
+  }
+
+  test('Use theirs replaces the browser\'s copy, and the file is in sync again', async () => {
+    const { teacher, bank, conflict } = await conflicted()
+    await resolveConflict(teacher.context, conflict, 'theirs')
+    expect(teacher.local.get(bank)!.body).toBe('theirs')
+    expect(teacher.store.state.conflicts).toEqual([])
+    const after = await teacher.sync()
+    expect([...after.uploaded, ...after.downloaded, ...after.conflicts.map(({ name }) => name)]).toEqual([])
+  })
+
+  test('Keep both sends the browser\'s version up as "(your copy)" and takes theirs', async () => {
+    const { world, teacher, bank, conflict } = await conflicted()
+    await resolveConflict(teacher.context, conflict, 'both')
+    expect(teacher.local.get(bank)!.body).toBe('theirs')
+    const mine = teacher.local.byName('Fractions (your copy)')!
+    expect(mine.body).toBe('mine')
+    expect(bodyOf(world, 'Fractions (your copy).pdf')).toBe('mine')
+    expect(bodyOf(world, 'Fractions.pdf')).toBe('theirs')
+    const after = await teacher.sync()
+    expect([...after.uploaded, ...after.downloaded]).toEqual([])
+  })
+})
+
+describe('Shared Resources', () => {
+  async function sharedBank() {
+    const world = new FakeDriveWorld()
+    const owner = browser(world, 'owner@school.org')
+    const bank = owner.local.add('bank', 'Fractions', 'v1')
+    await owner.sync()
+    const file = world.byName('Fractions.pdf')!
+    world.share(file.id, 'mate@school.org')
+    world.handOver(file.id, 'mate@school.org')
+    const mate = browser(world, 'mate@school.org')
+    return { world, owner, mate, bank, file }
+  }
+
+  test('a teammate adds a handed-over file, and each one\'s changes reach the other', async () => {
+    const { owner, mate, bank, file } = await sharedBank()
+    const [added] = await bringInDriveFiles(mate.context, [file.id], null)
+    expect(mate.local.get(added!)!.body).toBe('v1')
+    // The teammate's sync neither duplicates it nor makes their own copy.
+    expect((await mate.sync()).uploaded).toEqual([])
+    mate.local.edit(added!, 'from the teammate')
+    expect((await mate.sync()).uploaded).toEqual(['Fractions'])
+    expect((await owner.sync()).downloaded).toEqual(['Fractions'])
+    expect(owner.local.get(bank)!.body).toBe('from the teammate')
+  })
+
+  test('a teammate\'s Trash only takes the file out of their Library, and it stays out', async () => {
+    const { world, mate, file } = await sharedBank()
+    const [added] = await bringInDriveFiles(mate.context, [file.id], null)
+    mate.local.sendToTrash(added!)
+    await mate.sync()
+    expect(world.files.get(file.id)!.trashed).toBe(false)
+    const again = await mate.sync()
+    expect(again.downloaded).toEqual([])
+    expect(await sharedWithCount(mate.context, added!)).toBeNull()
+  })
+
+  test('the owner\'s Trash sends the file to Drive\'s trash for everyone, and the warning counts them', async () => {
+    const { owner, mate, bank, file } = await sharedBank()
+    const [added] = await bringInDriveFiles(mate.context, [file.id], null)
+    expect(await sharedWithCount(owner.context, bank)).toEqual({ owned: true, people: 1 })
+    expect(await sharedWithCount(mate.context, added!)).toEqual({ owned: false, people: 0 })
+    owner.local.sendToTrash(bank)
+    await owner.sync()
+    expect((await mate.sync()).trashed).toEqual(['Fractions'])
+    expect(mate.local.get(added!)!.trashed).toBe(true)
+  })
+
+  test('a teammate who may only view keeps their changes in the browser', async () => {
+    const { world, mate, file } = await sharedBank()
+    world.share(file.id, 'mate@school.org', 'reader')
+    const [added] = await bringInDriveFiles(mate.context, [file.id], null)
+    mate.local.edit(added!, 'mine')
+    expect((await mate.sync()).readOnly).toEqual(['Fractions'])
+  })
+
+  test('an Exam coming down is told which banks are Drive Copies, so it can link to them', async () => {
+    const { world, mate, file } = await sharedBank()
+    await bringInDriveFiles(mate.context, [file.id], null)
+    const bankId = Object.values(mate.store.state.files)[0]!
+    expect(bankId.fileId).toBe(file.id)
+    const examFile = await world.client('owner@school.org').create({ name: 'Quiz.pdf', parent: null, mimeType: 'application/pdf', appProperties: { tpApp: '1', tpKind: 'exam', tpId: 'exam-x' } })
+    world.touch(examFile.id, copy('quiz', 'Quiz', 'exam-x', 'exam'))
+    world.share(examFile.id, 'mate@school.org')
+    world.handOver(examFile.id, 'mate@school.org')
+    await bringInDriveFiles(mate.context, [examFile.id], null)
+    const incoming = mate.local.applied.at(-1)!
+    const localBank = Object.keys(mate.store.state.files).find((key) => key.startsWith('bank:'))!.slice('bank:'.length)
+    expect(incoming.isDriveCopy(localBank)).toBe(true)
+    expect(incoming.isDriveCopy('some-other-bank')).toBe(false)
+  })
+
+  test('only Test Parrot files can be added', async () => {
+    const world = new FakeDriveWorld()
+    const mate = browser(world, 'mate@school.org')
+    const other = await world.client('mate@school.org').create({ name: 'Notes.pdf', parent: null, mimeType: 'application/pdf', appProperties: {} })
+    await expect(bringInDriveFiles(mate.context, [other.id], null)).rejects.toThrow('Only files Test Parrot keeps in Drive')
   })
 })

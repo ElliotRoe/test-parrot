@@ -210,7 +210,7 @@ import { UNTITLED_FOLDER } from './resource-places'
 import { AboutPage, PrivacyPage } from './site-pages'
 import { SettingsPage } from './settings-page'
 import { persistentStorageStatus, requestPersistentStorage, type PersistentStorageStatus } from './durable-storage'
-import { LIBRARY_CHANGED_EVENT } from './drive/drive-sync-context'
+import { LIBRARY_CHANGED_EVENT, useDriveSync } from './drive/drive-sync-context'
 import { OpenFromDrivePage } from './drive/open-page'
 import { BankFileDropTarget } from './bank-file-drop'
 import { ImportsPage, WaitingImportPage } from './imports-page'
@@ -3316,6 +3316,7 @@ export default function App({
   const route = useRoute()
   const search = useLocationSearch()
   const [library] = useState(() => givenLibrary ?? createLibraryService({ workspaces, bankWorkspaces }))
+  const drive = useDriveSync()
   const [exams, setExams] = useState(initialExams)
   /** The bank the Question Bank page is showing and the address it was read
    *  for — at start by `main.tsx`, and after that on every arrival, so a bank
@@ -3464,6 +3465,7 @@ export default function App({
   const trashDialog = trashing && <TrashDialog
     name={trashing.name}
     warning={trashing.warning}
+    refs={[trashing.ref]}
     onCancel={() => setTrashing(null)}
     onConfirm={async () => {
       const { ref } = trashing
@@ -3561,6 +3563,10 @@ export default function App({
       else if (kind === 'import') {
         rememberImportFolder(folderId)
         openImport()
+      } else if (kind === 'drive') {
+        void drive?.addFromDrive(folderId).then((count) => {
+          if (count > 0 && onLibrary) void refreshLibrary()
+        }).catch(() => undefined)
       } else {
         rememberImportFolder(folderId)
         navigate('/get-started/convert')

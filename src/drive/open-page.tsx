@@ -9,13 +9,9 @@ import { PRIVACY_NOTE } from './sync-button'
  * Where a Drive Copy's "Open in Test Parrot" banner leads (ADR-0052). Opening
  * needs Google, and Google needs a click, so the page asks for one. The
  * owner's file opens straight away; a file this account cannot read yet is
- * handed over through the Google Picker (`pickFile`) first.
+ * handed over through the Google Picker, with it preselected, first.
  */
-export function OpenFromDrivePage({ persistentStorage, pickFile }: {
-  persistentStorage: PersistentStorageStatus
-  /** Shows the Picker with this file preselected; true once it was picked. */
-  pickFile?: (fileId: string) => Promise<boolean>
-}) {
+export function OpenFromDrivePage({ persistentStorage }: { persistentStorage: PersistentStorageStatus }) {
   const drive = useDriveSync()
   const fileId = new URLSearchParams(window.location.search).get('drive') ?? ''
   const [problem, setProblem] = useState('')
@@ -24,7 +20,9 @@ export function OpenFromDrivePage({ persistentStorage, pickFile }: {
     setProblem('')
     try {
       let target = await drive.openDriveFile(fileId)
-      if (!target && pickFile && await pickFile(fileId)) target = await drive.openDriveFile(fileId)
+      // A teammate's file: `drive.file` cannot read it until it is handed
+      // over, which is what picking it does.
+      if (!target && await drive.pickToOpen(fileId)) target = await drive.openDriveFile(fileId)
       if (target) openResource(target)
       else setProblem('This file isn’t shared with the Google account you chose, or it is no longer in Drive. Ask its owner to share it with you, then try again.')
     } catch {

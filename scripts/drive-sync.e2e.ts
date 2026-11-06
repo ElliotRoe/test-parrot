@@ -36,10 +36,14 @@ class FakeGoogle {
       ...(file.mimeType.includes('folder') ? {} : { md5Checksum: `${file.bytes.length}-${hash(file.bytes)}` }),
       trashed: file.trashed,
       ownedByMe: file.owner === email,
-      capabilities: { canEdit: file.owner === email },
+      capabilities: { canEdit: file.owner === email || file.readers.has(email) },
       owners: [{ emailAddress: file.owner }],
       appProperties: file.appProperties,
     }
+  }
+
+  share(id: string, email: string) {
+    this.files.get(id)!.readers.add(email)
   }
 
   visible(file: FakeFile, email: string) {
@@ -51,6 +55,13 @@ class FakeGoogle {
     const path = url.pathname
     const json = (value: unknown, status = 200) => ({ status, contentType: 'application/json', body: JSON.stringify(value) })
     if (path.endsWith('/about')) return json({ user: { emailAddress: email, displayName: email } })
+    // What picking a file in the stubbed Picker does: hands it to the app.
+    if (path.endsWith('/fake-picker/grant')) {
+      const picked = url.searchParams.get('id')!
+      if (!this.granted.has(email)) this.granted.set(email, new Set())
+      this.granted.get(email)!.add(picked)
+      return json({})
+    }
     const match = path.match(/\/files(?:\/([^/]+))?(\/permissions)?$/)
     if (!match) return json({ error: { message: 'unknown' } }, 404)
     const id = match[1] ? decodeURIComponent(match[1]) : undefined
@@ -111,10 +122,31 @@ async function signInAs(context: BrowserContext, google: FakeGoogle, email: stri
       hasGrantedAllScopes() { return true },
     } } })`,
   }))
+  // The Picker picks whatever it was asked to preselect.
+  await context.route('https://apis.google.com/js/api.js', (route) => route.fulfill({
+    contentType: 'text/javascript',
+    body: `window.gapi = { load(name, done) {
+      const picker = {
+        ViewId: { DOCS: 'docs' }, Feature: { MULTISELECT_ENABLED: 'multi' },
+        Action: { PICKED: 'picked', CANCEL: 'cancel' }, Response: { ACTION: 'action', DOCUMENTS: 'docs' }, Document: { ID: 'id' },
+        DocsView: class { setMimeTypes() {} setIncludeFolders() {} setSelectFolderEnabled() {} setFileIds(ids) { window.__pickerIds = ids.split(',') } },
+        PickerBuilder: class {
+          setAppId() { return this } setOAuthToken() { return this } setDeveloperKey() { return this } addView() { return this }
+          enableFeature() { return this } setTitle() { return this } setCallback(callback) { this.callback = callback; return this }
+          build() { const callback = this.callback; return { setVisible() {
+            const ids = window.__pickerIds || []
+            Promise.all(ids.map((id) => fetch('https://www.googleapis.com/fake-picker/grant?id=' + id)))
+              .then(() => callback({ action: 'picked', docs: ids.map((id) => ({ id })) }))
+          } } }
+        },
+      }
+      window.google = Object.assign(window.google || {}, { picker }); done()
+    } }`,
+  }))
   await context.route('https://www.googleapis.com/**', async (route) => {
     const request = route.request()
     const answer = await google.handle(email, request.method(), new URL(request.url()), await request.allHeaders(), request.postDataBuffer())
-    await route.fulfill({ status: answer.status, contentType: answer.contentType, body: answer.body })
+    await route.fulfill({ status: answer.status, contentType: answer.contentType, body: answer.body, headers: { 'Access-Control-Allow-Origin': '*' } })
   })
 }
 
@@ -193,4 +225,54 @@ test('a teacher syncs one browser to Drive and brings it all down in another', a
   await expect(restoring.getByText('Fractions', { exact: true }).first()).toBeVisible()
   expect(google.byName('Fractions.pdf')).toBeTruthy()
   await third.close()
+})
+
+async function renameBank(page: Page, from: string, to: string) {
+  await page.evaluate(async ({ from, to }) => {
+    const { createQuestionBankWorkspaceService } = (await import(
+      /* @vite-ignore */ '/src/question-bank-workspaces.ts'
+    )) as typeof import('../src/question-bank-workspaces')
+    const banks = createQuestionBankWorkspaceService()
+    const bank = (await banks.recent()).find((candidate) => candidate.name === from)!
+    await banks.commit(bank.id, { kind: 'update-provenance', provenance: { description: to } })
+  }, { from, to })
+}
+
+test('a teammate opens a shared bank from its banner link, and settles a conflict with Keep both', async ({ browser }) => {
+  test.setTimeout(120_000)
+  const google = new FakeGoogle()
+  const owner = await browser.newContext()
+  await signInAs(owner, google, 'owner@school.org')
+  const ownerPage = await owner.newPage()
+  await seedBank(ownerPage, 'Fractions', 'What is one half of six?')
+  await ownerPage.goto('/')
+  await connectAndSync(ownerPage)
+  await expect(ownerPage.getByRole('banner').getByRole('status')).toHaveText('Synced: 1 sent to Drive.', { timeout: 60_000 })
+  const file = google.byName('Fractions.pdf')!
+  google.share(file.id, 'mate@school.org')
+
+  // The teammate follows the banner's link. drive.file cannot read the file
+  // yet, so the Picker opens with it preselected, and picking it opens it.
+  const mate = await browser.newContext()
+  await signInAs(mate, google, 'mate@school.org')
+  const matePage = await mate.newPage()
+  await matePage.goto(`/open?drive=${file.id}`)
+  await matePage.getByRole('button', { name: 'Open in Test Parrot' }).click()
+  await expect(matePage.getByText('What is one half of six?')).toBeVisible({ timeout: 30_000 })
+
+  // Both change it; the teammate's sync skips it and offers the choice.
+  await renameBank(ownerPage, 'Fractions', 'Owner notes')
+  await ownerPage.getByRole('button', { name: /^Sync with Drive/ }).click()
+  await expect(ownerPage.getByRole('banner').getByRole('status')).toHaveText('Synced: 1 sent to Drive.', { timeout: 60_000 })
+  await renameBank(matePage, 'Fractions', 'Teammate notes')
+  await matePage.goto('/')
+  await matePage.getByRole('button', { name: /^Sync with Drive/ }).click()
+  const conflict = matePage.getByRole('group', { name: 'Fractions' })
+  await expect(conflict).toBeVisible({ timeout: 60_000 })
+  await conflict.getByRole('button', { name: 'Keep both' }).click()
+  await expect(conflict).toHaveCount(0, { timeout: 60_000 })
+  await expect(matePage.getByText('Fractions (your copy)', { exact: true }).first()).toBeVisible()
+  expect(google.byName('Fractions (your copy).pdf')).toBeTruthy()
+  await owner.close()
+  await mate.close()
 })
