@@ -68,8 +68,33 @@ export function remapIds<T>(value: T, map: ReadonlyMap<string, string>): T {
   return walk(value) as T
 }
 
-export function openUrl(fileId: string, origin = typeof window === 'undefined' ? 'https://testparrot.com' : window.location.origin) {
-  return `${origin}/open?drive=${encodeURIComponent(fileId)}`
+/** What a banner link says about its file, so the page it opens can show
+ *  the file before Google is asked for it. It is only a preview: what opens
+ *  is what Drive holds. */
+export type OpenLinkPreview = { kind: 'bank' | 'exam'; title: string; questions: number }
+
+export function openUrl(
+  fileId: string,
+  preview?: OpenLinkPreview,
+  origin = typeof window === 'undefined' ? 'https://testparrot.com' : window.location.origin,
+) {
+  const query = new URLSearchParams({ drive: fileId })
+  if (preview) {
+    query.set('kind', preview.kind)
+    query.set('title', preview.title.slice(0, 80))
+    query.set('questions', String(preview.questions))
+  }
+  return `${origin}/open?${query.toString()}`
+}
+
+/** The preview a banner link carries, or null for a bare link. */
+export function readOpenLinkPreview(search: string): OpenLinkPreview | null {
+  const query = new URLSearchParams(search)
+  const kind = query.get('kind')
+  const title = query.get('title')?.trim()
+  const questions = Number(query.get('questions'))
+  if ((kind !== 'bank' && kind !== 'exam') || !title) return null
+  return { kind, title: title.slice(0, 80), questions: Number.isFinite(questions) && questions >= 0 ? Math.floor(questions) : 0 }
 }
 
 export const BANNER_TEXT = 'Open in Test Parrot'

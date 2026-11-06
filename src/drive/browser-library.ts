@@ -58,7 +58,7 @@ export function createBrowserLibrary({ library, workspaces, bankWorkspaces, crea
       { kind: 'bank', id, name: bank.name },
       bankIdentities(bank.questions, prepared.record.bank.questions),
     ))
-    return withOpenBanner(await createQuestionBankPdf(prepared), openUrl(fileId))
+    return withOpenBanner(await createQuestionBankPdf(prepared), openUrl(fileId, { kind: 'bank', title: bank.name, questions: bank.questions.length }))
   }
 
   async function renderExam(id: string, fileId: string): Promise<Uint8Array> {
@@ -96,7 +96,7 @@ export function createBrowserLibrary({ library, workspaces, bankWorkspaces, crea
     carried.files.set(IDENTITY_FILE, identityFile({ kind: 'exam', id, name: exam.title }, carried.identities))
     const zip = await writePackageZip(JSON.stringify(carried.package), carried.files)
     const pdf = await createPublicationPdf(prepared.documents, undefined, undefined, zip)
-    return withOpenBanner(pdf.bytes, openUrl(fileId))
+    return withOpenBanner(pdf.bytes, openUrl(fileId, { kind: 'exam', title: exam.title, questions: exam.questions.length }))
   }
 
   /** The fresh ids an import made, mapped back to the ids the copy names. */

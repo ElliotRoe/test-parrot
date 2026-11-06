@@ -1,8 +1,9 @@
 import { useEffect, useRef, useState } from 'react'
-import { Cloud } from 'lucide-react'
+import { Cloud, Database, FileText } from 'lucide-react'
 import { AppShell } from '../app-shell'
 import type { PersistentStorageStatus } from '../durable-storage'
 import { openResource, useDriveSync } from './drive-sync-context'
+import { readOpenLinkPreview } from './drive-copy'
 import { cachedToken } from './google-auth'
 import { PRIVACY_NOTE } from './sync-button'
 
@@ -42,24 +43,43 @@ export function OpenFromDrivePage({ persistentStorage }: { persistentStorage: Pe
     started.current = true
     void open()
   })
+  const preview = readOpenLinkPreview(window.location.search)
+  const kindLabel = preview?.kind === 'exam' ? 'Exam' : preview?.kind === 'bank' ? 'Question Bank' : 'Test Parrot file'
+  const Icon = preview?.kind === 'exam' ? FileText : Database
+  const opening = drive?.busy === 'opening'
   return (
-    <AppShell crumbs={[{ label: 'Home', href: '/' }, { label: 'Open from Google Drive' }]} persistentStorage={persistentStorage}>
-      <div className="site-prose open-drive">
-        <h1>Open from Google Drive</h1>
+    <AppShell crumbs={[{ label: 'Home', href: '/' }, { label: preview?.title ?? 'Open from Google Drive' }]} persistentStorage={persistentStorage}>
+      <div className="open-drive">
         {!drive?.configured || !fileId ? (
           <p className="site-lede">This link opens a Test Parrot file kept in Google Drive, but Google Drive isn’t available here.</p>
         ) : (
-          <>
-            <p className="site-lede">Open this Test Parrot file from Google Drive. It stays in sync with Drive each time you sync.</p>
-            <p>{PRIVACY_NOTE}</p>
-            <div className="account-actions">
-              <button type="button" className="primary-button account-action" disabled={drive.busy !== null} onClick={() => void open()}>
-                <Cloud aria-hidden="true" />
-                {drive.busy === 'opening' ? 'Opening…' : 'Open in Test Parrot'}
-              </button>
+          <article className="open-drive-card" aria-labelledby="open-drive-title">
+            {/* A sheet of the file, drawn from what the link says: enough to
+                recognise it before Google is asked for the real thing. */}
+            <div className="open-drive-sheet" aria-hidden="true">
+              <span className="open-drive-sheet-kind"><Icon />{kindLabel}</span>
+              <span className="open-drive-sheet-title">{preview?.title ?? 'Shared from Google Drive'}</span>
+              {Array.from({ length: Math.min(Math.max(preview?.questions ?? 3, 2), 5) }, (_, index) => (
+                <span key={index} className="open-drive-sheet-question">
+                  <span>{index + 1}.</span><span className="open-drive-line" /><span className="open-drive-line open-drive-line--short" />
+                </span>
+              ))}
             </div>
-            {(problem || drive.error) && <p className="account-warning" role="alert">{problem || drive.error}</p>}
-          </>
+            <div className="open-drive-details">
+              <p className="open-drive-kind"><Icon aria-hidden="true" />{kindLabel} in Google Drive</p>
+              <h1 id="open-drive-title">{preview?.title ?? 'Open from Google Drive'}</h1>
+              {preview && <p className="open-drive-meta">{preview.questions === 1 ? '1 Question' : `${preview.questions} Questions`}</p>}
+              <p>Open it in Test Parrot to work on it. It stays in step with Drive each time you sync.</p>
+              <div className="account-actions">
+                <button type="button" className="primary-button account-action" disabled={drive.busy !== null} onClick={() => void open()}>
+                  <Cloud aria-hidden="true" />
+                  {opening ? 'Opening…' : 'Open in Test Parrot'}
+                </button>
+              </div>
+              {(problem || drive.error) && <p className="account-warning" role="alert">{problem || drive.error}</p>}
+              <p className="sync-privacy">{PRIVACY_NOTE}</p>
+            </div>
+          </article>
         )}
       </div>
     </AppShell>
